@@ -29,15 +29,12 @@ ui <- fluidPage(
                       )
           ),
           tags$br(),
+          uiOutput("outcome_selector"),
           uiOutput("time_selector"),
           uiOutput("group_selector"),
-          uiOutput("outcome_selector"),
+          uiOutput("add_interaction_selector"),
           uiOutput("family_selector"),
-          numericInput("component_num", "Number of Components:", 
-                       value = 1, 
-                       min = 1, 
-                       step = 1)
-        ,
+          uiOutput("component_selector"),
         uiOutput("period_inputs"),
         
           tags$br(),
@@ -47,12 +44,16 @@ ui <- fluidPage(
         # Show a plot of the generated distribution
         mainPanel(
            plotOutput("plot"), 
-           tableOutput("table"))
+           textOutput("formula_text"),
+           tags$hr(),
+           uiOutput("plot_toggles")
+           )
     )
 )
 
-#Define server logic 
-server <- function(input, output) {
+
+#Define server logic. Generates a plot using autoplot()
+server <- function(input, output, session) {
   filedata <- reactive({
     infile <- input$file1
     if(is.null(infile)) {
@@ -72,6 +73,21 @@ server <- function(input, output) {
     
   })
   
+  group_col <- reactive({
+    group_check <- input$group
+    if(is.null(group_check)) {
+      return(NULL)
+    } else {
+      return(group_check)
+    }
+  })
+    output$add_interaction_selector <- renderUI({
+      if(is.null(group_col()) || group_col() == "None (default)") {
+        return(NULL)
+      } 
+    checkboxInput("add_interaction","Add as interaction Term", value = TRUE)
+  })
+    
   output$time_selector <- renderUI({
     if(is.null(cols())) {
       return(NULL)
@@ -86,6 +102,19 @@ server <- function(input, output) {
     selectInput("group", "Select the GROUPING variable from:", c("None (default)",cols()))
   })
   
+  
+  # plot_col <- reactive ({
+  # if(!is.null(output$plot)){
+  #   return(NULL) 
+  # } else {
+  #   return(plot_check)
+  # }
+  # })
+  
+  
+
+  
+  
   output$family_selector <- renderUI({
     if(is.null(cols())){
       return(NULL)
@@ -97,6 +126,24 @@ server <- function(input, output) {
     ))
   })
   
+  output$component_selector <- renderUI({
+    if(is.null(cols())) {
+      return(NULL)
+    }
+    numericInput("component_num", "Number of Components:", 
+                 value = 1, 
+                 min = 1, 
+                 step = 1)
+  })
+  
+  component_col <- reactive({
+    component_check <- input$component_num
+    if(is.null(component_check)) {
+      return(NULL)
+    } else {
+      return(component_check)
+    }
+  })
   
   output$outcome_selector <- renderUI({
     if(is.null(cols())) {
@@ -105,13 +152,22 @@ server <- function(input, output) {
     selectInput("outcome", "Select the OUTCOME (DEPENDENT) variable from:", cols())
   })
   
-  output$component_num <- renderText({
-    component_num <- input$component_num
-  })
+  # output$component_num <- renderText({
+  #   if(is.null(cols())) {
+  #     return(NULL)
+  #   }
+  #   component_num <- input$component_num
+  # })
+  # 
+
+  
 
   period_values <- reactiveValues(values = NULL)
-  
     observe({
+      
+      if(is.null(component_col())){
+        return(NULL)
+      } 
       component_num <- input$component_num
 
     period_inputs <- lapply(1:component_num, function(i) {
@@ -119,6 +175,9 @@ server <- function(input, output) {
     })
   
     output$period_inputs <- renderUI({
+      if(is.null(cols())) {
+        return(NULL)
+      }
       period_inputs
     })
   })
@@ -151,8 +210,26 @@ server <- function(input, output) {
       family <- input$family
       family <- eval(parse(text = family))
       
+  
+      if(input$group == "None (default)") {
+        group <- NULL 
+      } else {
+      group <- input$group 
+      }
+      if(!is.null(input$add_interaction)){
+        group_label_1 <- paste0(group)
+        group_label_2 <- paste0("group ='",group,"',")
+      } else {
+        group_label_1 <- NULL 
+        group_label_2 <- paste0("group ='",group,"',")
+      }
+      
+      if(input$group == "None (default)") {
+        group_label_2 <- NULL 
+      }
+
       # Define the formula as a string to be evaluated 
-      form_obj <- paste0(input$outcome,"~",input$group, "+", "amp_acro(time_col = ",input$time, ", n_components =", input$component_num ,", group = '",input$group,"', period =c(",paste(period_values, collapse = ", "), "))")
+      form_obj <- paste0(input$outcome,"~",group_label_1, "+", "amp_acro(time_col = ",input$time, ", n_components =", input$component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))")
       formula <- as.formula(form_obj)
       
       #generate the cglmm object 
@@ -179,15 +256,110 @@ server <- function(input, output) {
       # if (!inherits(cc_obj, "list")) {
       #   return(NULL)
       # }
+      
+
+      if (is.null(input$plot_variables) || length(input$plot_variables) == 0) {
+        superimpose_arg <- FALSE  # Default value when no toggles are selected
+        predict_arg <- FALSE
+      } else {
+        # Determine values based on selected toggles
+        superimpose_arg <- "superimpose data" %in% input$plot_variables
+        predict_arg <- "predict ribbon" %in% input$plot_variables
+      }
+      
       autoplot(cc_obj,
-               superimpose.data = TRUE,
-               predict.ribbon = FALSE
+               superimpose.data = superimpose_arg,
+               predict.ribbon = predict_arg
       )
     })
     
+    output$plot_toggles <- renderUI({
+      checkboxGroupInput('plot_variables', 'Plot options:',
+                         c("superimpose data",
+                           "predict ribbon"))
+    })
+
   })
   
-
+  
+  
+  
+    # Reactive expression to generate the formula based on user inputs
+  formula_text <- reactive({
+    
+    if(is.null(input$outcome)) {
+      outcome <- "Y" 
+    } else {
+      outcome <- input$outcome
+    }
+    
+    if(is.null(input$group)|| input$group == "None (default)") {
+      group <- NULL 
+      group_label_1 <- NULL 
+      group_label_2 <- paste('group = NULL')
+    } else {
+      #since 'group' appears at two different points in the formula, the 
+      #formatting is slightly different: 
+      group_label_1 <- paste(input$group,"+") 
+      group_label_2 <- paste("group ='",input$group,"'")
+    }
+    
+    
+    
+ 
+    group <- input$group 
+    if(!is.null(input$add_interaction)) {
+    if(!input$add_interaction){
+      group_label_1 <- NULL 
+    } 
+    }
+    
+    if(is.null(input$component_num)) {
+      component_num <- 1
+      period_values <- 1
+    } else {
+      component_num <- input$component_num
+      period_inputs <- lapply(1:component_num, function(i) {
+        numericInput(paste0("period_input_", i), label = paste("Period for Component", i), value = 1, min = 1, step = 1)  
+      })
+      values <- sapply(1:component_num, function(i) {
+        input[[paste0("period_input_", i)]]
+      })
+      
+      period_values <- values
+    }
+    
+    if(length(period_values)>1) {
+      period_values <- paste0("c(",paste(period_values, collapse = ", "),")")
+    }
+    
+    if(is.null(input$time)) {
+      time <- "time"
+    } else  {
+      time <- input$time
+    }
+    
+    if(is.null(input$family)) {
+      family <- "gaussian"
+    } else {
+      family <- input$family
+    }
+    family <- eval(parse(text = family))
+    
+    # Define the formula as a string to be evaluated 
+    form_obj <- paste(outcome,"~",group_label_1, "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,", period =",period_values, ")")
+    #formula <- as.formula(form_obj)
+    
+    # You can customize the formula creation based on your specific requirements
+    
+    return(form_obj)
+  })
+  
+  # Render the formula text in the UI
+  output$formula_text <- renderText({
+    formula_text()
+  })
+  
 }
 
 # Run the application 
