@@ -5,7 +5,9 @@ get_formula <- function(component_num,
                         add_interaction,
                         outcome, 
                         time, 
-                        period_values
+                        period_values, 
+                        ranef_components, 
+                        categorical_var
                         ) {
 
   
@@ -26,8 +28,13 @@ get_formula <- function(component_num,
     group_label_2 <- NULL 
   }
   
+  if(!is.null(ranef_components)) {
+  ranef_bit <- paste0("+(",paste(unlist(ranef_components), collapse = "+"), "|",categorical_var, ")")
+  } 
+
   # Define the formula as a string to be evaluated 
-  form_obj <- paste0(outcome,"~",group_label_1, "+", "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))")
+  form_obj <- paste0(outcome,"~",group_label_1, "+", "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))",ranef_bit)
+  
   # Convert string into formula
   formula <- as.formula(form_obj)
   

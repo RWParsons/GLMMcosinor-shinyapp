@@ -36,16 +36,19 @@ ui <- fluidPage(
           uiOutput("add_interaction_selector"),
           uiOutput("family_selector"),
           uiOutput("component_selector"),
-        uiOutput("period_inputs"),
-        
+          uiOutput("period_inputs"),
+          uiOutput("random_effect_toggle"),
+          uiOutput("categorical_var_mixed_mod"),
           tags$br(),
           uiOutput("ui.action")
         ),
 
         # Show a plot of the generated distribution
         mainPanel(
-           plotOutput("plot"), 
+           uiOutput("show_formula_toggle"),
            textOutput("formula_text"),
+           tags$hr(),
+           plotOutput("plot"), 
            tags$hr(),
            uiOutput("plot_toggles")
            )
@@ -90,7 +93,7 @@ server <- function(input, output, session) {
       } 
     checkboxInput("add_interaction","Add as interaction Term", value = TRUE)
   })
-    
+
   output$time_selector <- renderUI({
     if(is.null(cols())) {
       return(NULL)
@@ -163,9 +166,11 @@ server <- function(input, output, session) {
   # })
   # 
 
-  
+  random_effect_values <- reactiveValues(values = NULL)
+
 
   period_values <- reactiveValues(values = NULL)
+  ranef_values <- reactiveValues(values = NULL)
     observe({
       
       if(is.null(component_col())){
@@ -173,15 +178,52 @@ server <- function(input, output, session) {
       } 
       component_num <- input$component_num
 
+   
     period_inputs <- lapply(1:component_num, function(i) {
-      numericInput(paste0("period_input_", i), label = paste("Period for Component", i), value = 1, min = 1, step = 1)  
+      numericInput(paste0("period_input_", i), label = paste0("Period for Component ", i,":"), value = 1, min = 1, step = 1) 
     })
+    random_effect_inputs <- lapply(1:component_num,function(i){
+      checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
+    })
+
+    # Initialize a new vector to store the combined values
+    combined_vector <- character(length(period_inputs) + length(random_effect_inputs))
+    
+    # Interleave the elements
+    for (i in 1:length(period_inputs)) {
+      combined_vector[(i - 1) * 2 + 1] <- period_inputs[i]
+      combined_vector[i * 2] <- random_effect_inputs[i]
+    }
+    
   
     output$period_inputs <- renderUI({
       if(is.null(cols())) {
         return(NULL)
       }
-      period_inputs
+      
+      c(combined_vector)
+    })
+    
+    
+    if(!is.null(input$random_effect_inputs)) {
+      ranef_components <- input$random_effect_inputs
+      
+    } else {
+      ranef_components <- NULL
+    }
+    # output$random_effect_toggle <- renderUI({
+    #   if(is.null(cols())) {
+    #     return(NULL)
+    #   }
+    #   random_effect_values
+    # })
+    
+    output$show_formula_toggle <- renderUI({
+      if(is.null(cols())) {
+        return(NULL)
+      }
+      checkboxInput("show_formula", "Show formula", FALSE)
+      
     })
   })
 
@@ -194,6 +236,16 @@ server <- function(input, output, session) {
     actionButton("action", "Run")
   })
   
+
+  
+  output$categorical_var_mixed_mod <- renderUI({
+    if(is.null(cols()) || is.null(input$random_effect_inputs)) {
+      return(NULL)
+    }
+    selectInput("mixed_mod_var", "For mixed models, select a categorical variable from:", cols())
+  })
+  
+
   observeEvent(input$action, {
     isolate({
       df <- filedata()
@@ -210,12 +262,29 @@ server <- function(input, output, session) {
       
       component_num <- input$component_num
       
+      
+      
       #Get the period values for each component
-      values <- sapply(1:component_num, function(i) {
+      period_values <- sapply(1:component_num, function(i) {
         input[[paste0("period_input_", i)]]
       })
-      period_values <- values
+
+      k = 1
+      random_effect_values <- NULL
+      for (i in 1:component_num) {
+        if (input[[paste0("amp_acro",i)]]) {
+          random_effect_values[[k]] <- paste0("amp_acro",i)
+          k = k+1
+        } else {
+          random_effect_values <- NULL
+        }
+      }
       
+
+      
+      #store a vector of ccomponents with random effects selected
+      ranef_components <- random_effect_values
+      categorical_var <- input$mixed_mod_var
     cc_obj <- get_formula(
       component_num = component_num, 
       df = df,
@@ -224,7 +293,9 @@ server <- function(input, output, session) {
       add_interaction = input$add_interaction,
       outcome = input$outcome, 
       time = input$time, 
-      period_values <- period_values
+      period_values <- period_values, 
+      ranef_components <- ranef_components, 
+      categorical_var = categorical_var
       )
     
     })
@@ -262,15 +333,16 @@ server <- function(input, output, session) {
                          c("superimpose data",
                            "predict ribbon"))
     })
+    
+    
 
   })
   
   
-  
-  
+
     # Reactive expression to generate the formula based on user inputs
   formula_text <- reactive({
-    if(is.null(cols())) {
+    if(is.null(cols()) || !input$show_formula) {
       return(NULL)
     } else {
     
@@ -312,8 +384,6 @@ server <- function(input, output, session) {
     return(form_obj)
     }
   })
-  
-
   
   # Render the formula text in the UI
   output$formula_text <- renderText({
