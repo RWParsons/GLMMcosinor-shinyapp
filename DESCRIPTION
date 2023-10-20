@@ -1,0 +1,10 @@
+Package: GLMMcosinorshinyapp
+Type: Package
+Title: A Shiny app for the `GLMMcosinor` R package 
+Version: 0.0.1
+Date: 2023-10-14
+Author: Oliver Jayasinghe & Rex Parsons 
+Maintainer: Who to complain to <oli041101@gmail.com>
+Description: More about what it does (maybe more than one line)
+License: What license is it under?
+

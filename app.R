@@ -8,10 +8,11 @@
 #
 
 library(shiny)
+library(shinyFiles)
 library(GLMMcosinor)
+source("get_formula.R")
 
 
-# Define UI for application that draws a histogram
 ui <- fluidPage(
 
     # Application title
@@ -62,6 +63,7 @@ server <- function(input, output, session) {
     read.csv(infile$datapath)
   })
   
+  
   cols <- reactive({
     df <- filedata()
     if(is.null(df)) {
@@ -72,6 +74,7 @@ server <- function(input, output, session) {
     }
     
   })
+  
   
   group_col <- reactive({
     group_check <- input$group
@@ -199,49 +202,30 @@ server <- function(input, output, session) {
       }
       set.seed(42)
       
-
-      # Collect the values entered in period_inputs
+      if(input$group == "None (default)") {
+        group <- NULL 
+      } else {
+        group <- input$group 
+      }
+      
       component_num <- input$component_num
+      
+      #Get the period values for each component
       values <- sapply(1:component_num, function(i) {
         input[[paste0("period_input_", i)]]
       })
       period_values <- values
-      #family <- noquote(paste0("stats::",input$family))
-      family <- input$family
-      family <- eval(parse(text = family))
       
-  
-      if(input$group == "None (default)") {
-        group <- NULL 
-      } else {
-      group <- input$group 
-      }
-      if(!is.null(input$add_interaction)){
-        group_label_1 <- paste0(group)
-        group_label_2 <- paste0("group ='",group,"',")
-      } else {
-        group_label_1 <- NULL 
-        group_label_2 <- paste0("group ='",group,"',")
-      }
-      
-      if(input$group == "None (default)") {
-        group_label_2 <- NULL 
-      }
-
-      # Define the formula as a string to be evaluated 
-      form_obj <- paste0(input$outcome,"~",group_label_1, "+", "amp_acro(time_col = ",input$time, ", n_components =", input$component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))")
-      formula <- as.formula(form_obj)
-      
-      #generate the cglmm object 
-      cc_obj <- 
-          GLMMcosinor::cglmm(
-            data = df, 
-            formula = eval(formula),
-            family = family
-          )
-      
-      # ensure that autoplot() has access to the formula 
-      cc_obj$cglmm.calls$cglmm$formula = formula 
+    cc_obj <- get_formula(
+      component_num = component_num, 
+      df = df,
+      family = input$family, 
+      group = input$group, 
+      add_interaction = input$add_interaction,
+      outcome = input$outcome, 
+      time = input$time, 
+      period_values <- period_values
+      )
     
     })
     
@@ -286,33 +270,9 @@ server <- function(input, output, session) {
   
     # Reactive expression to generate the formula based on user inputs
   formula_text <- reactive({
-    
-    if(is.null(input$outcome)) {
-      outcome <- "Y" 
+    if(is.null(cols())) {
+      return(NULL)
     } else {
-      outcome <- input$outcome
-    }
-    
-    if(is.null(input$group)|| input$group == "None (default)") {
-      group <- NULL 
-      group_label_1 <- NULL 
-      group_label_2 <- paste('group = NULL')
-    } else {
-      #since 'group' appears at two different points in the formula, the 
-      #formatting is slightly different: 
-      group_label_1 <- paste(input$group,"+") 
-      group_label_2 <- paste("group ='",input$group,"'")
-    }
-    
-    
-    
- 
-    group <- input$group 
-    if(!is.null(input$add_interaction)) {
-    if(!input$add_interaction){
-      group_label_1 <- NULL 
-    } 
-    }
     
     if(is.null(input$component_num)) {
       component_num <- 1
@@ -329,36 +289,38 @@ server <- function(input, output, session) {
       period_values <- values
     }
     
-    if(length(period_values)>1) {
-      period_values <- paste0("c(",paste(period_values, collapse = ", "),")")
-    }
-    
-    if(is.null(input$time)) {
-      time <- "time"
-    } else  {
-      time <- input$time
-    }
-    
-    if(is.null(input$family)) {
-      family <- "gaussian"
+    if (!is.null(input$file1$name)) {
+      file_name <- sub(".csv$", "", input$file1$name)
     } else {
-      family <- input$family
+      file_name <- "NULL"
     }
-    family <- eval(parse(text = family))
     
-    # Define the formula as a string to be evaluated 
-    form_obj <- paste(outcome,"~",group_label_1, "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,", period =",period_values, ")")
-    #formula <- as.formula(form_obj)
+    form_obj <- get_UI_formula(
+      component_num = component_num, 
+      df = df,
+      family_arg = input$family, 
+      group = input$group, 
+      add_interaction = input$add_interaction,
+      outcome = input$outcome, 
+      time = input$time, 
+      period_values <- period_values, 
+      file_name <- file_name 
+    )
     
-    # You can customize the formula creation based on your specific requirements
+    
     
     return(form_obj)
+    }
   })
+  
+
   
   # Render the formula text in the UI
   output$formula_text <- renderText({
     formula_text()
   })
+  
+  
   
 }
 
