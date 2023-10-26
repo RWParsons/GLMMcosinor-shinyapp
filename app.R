@@ -37,7 +37,9 @@ ui <- fluidPage(
           uiOutput("family_selector"),
           uiOutput("component_selector"),
           uiOutput("period_inputs"),
-          uiOutput("random_effect_toggle"),
+          uiOutput("ui.add_ranef"),
+          uiOutput("mixed_model"),
+          uiOutput("random_effect_inputs"),
           uiOutput("categorical_var_mixed_mod"),
           tags$br(),
           uiOutput("ui.action")
@@ -187,30 +189,23 @@ server <- function(input, output, session) {
     })
 
     # Initialize a new vector to store the combined values
-    combined_vector <- character(length(period_inputs) + length(random_effect_inputs))
-    
-    # Interleave the elements
-    for (i in 1:length(period_inputs)) {
-      combined_vector[(i - 1) * 2 + 1] <- period_inputs[i]
-      combined_vector[i * 2] <- random_effect_inputs[i]
-    }
-    
+    # combined_vector <- character(length(period_inputs) + length(random_effect_inputs))
+    # 
+    # # Interleave the elements
+    # for (i in 1:length(period_inputs)) {
+    #   combined_vector[(i - 1) * 2 + 1] <- period_inputs[i]
+    #   combined_vector[i * 2] <- random_effect_inputs[i]
+    # }
+    # 
   
     output$period_inputs <- renderUI({
       if(is.null(cols())) {
         return(NULL)
       }
       
-      c(combined_vector)
+      period_inputs
     })
-    
-    
-    if(!is.null(input$random_effect_inputs)) {
-      ranef_components <- input$random_effect_inputs
-      
-    } else {
-      ranef_components <- NULL
-    }
+  
     # output$random_effect_toggle <- renderUI({
     #   if(is.null(cols())) {
     #     return(NULL)
@@ -227,7 +222,9 @@ server <- function(input, output, session) {
     })
   })
 
+
     
+
     
   output$ui.action <- renderUI({
     if (is.null(input$file1)) {
@@ -236,14 +233,73 @@ server <- function(input, output, session) {
     actionButton("action", "Run")
   })
   
+  
+  output$ui.add_ranef <- renderUI({
+    if (is.null(input$file1)) {
+      return()
+    }
+    actionButton("add_ranef", "Add random effect term")
+  })
+  
+  
+  ##mixed model stuff
+  
+  # output$mixed_model <- renderUI({
+  #   if(is.null(cols())) {
+  #     return(NULL)
+  #   }
+  #   checkboxInput("mixed_model_toggle", "Mixed model", FALSE)
+  # })
+  # 
+  # 
+  # mixed_mod_check <- reactive({
+  #   if(is.null(cols())) {
+  #     return(NULL)
+  #   }
+  #   if(is.null(input$mixed_model_toggle)){
+  #     return(FALSE)
+  #   } else {
+  #     if(input$mixed_model_toggle){
+  #       return(TRUE)
+  #     } else {
+  #       return(FALSE)
+  #     }
+  #     model_toggle <- TRUE
+  #   }
+  #   
+  # })
 
   
-  output$categorical_var_mixed_mod <- renderUI({
-    if(is.null(cols()) || is.null(input$random_effect_inputs)) {
+  #Work in progress to try to make ranef spec more modular
+  observeEvent(input$add_ranef, {
+    if(is.null(input$component_num)) {
       return(NULL)
     }
-    selectInput("mixed_mod_var", "For mixed models, select a categorical variable from:", cols())
+    component_num <- input$component_num
+
+    random_effect_inputs <- lapply(1:component_num,function(i){
+      checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
+    })
+
+    output$random_effect_inputs <- renderUI({
+      random_effect_inputs
+    })
+
+
+    if(!is.null(input$random_effect_inputs)) {
+      ranef_components <- input$random_effect_inputs
+
+    } else {
+      ranef_components <- NULL
+    }
+    
+    output$categorical_var_mixed_mod <- renderUI({
+
+      selectInput("mixed_mod_var", "For mixed models, select a categorical variable from:", cols())
+      
+    })
   })
+
   
 
   observeEvent(input$action, {
@@ -276,7 +332,7 @@ server <- function(input, output, session) {
           random_effect_values[[k]] <- paste0("amp_acro",i)
           k = k+1
         } else {
-          random_effect_values <- NULL
+          random_effect_values[[i]] <- NULL
         }
       }
       
@@ -342,9 +398,12 @@ server <- function(input, output, session) {
 
     # Reactive expression to generate the formula based on user inputs
   formula_text <- reactive({
-    if(is.null(cols()) || !input$show_formula) {
+    if(is.null(cols()) || is.null(input$show_formula)) {
       return(NULL)
     } else {
+      if(!input$show_formula) {
+        return(NULL)
+      }
     
     if(is.null(input$component_num)) {
       component_num <- 1

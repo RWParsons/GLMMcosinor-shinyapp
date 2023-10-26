@@ -10,7 +10,7 @@ get_formula <- function(component_num,
                         categorical_var
                         ) {
 
-  
+
   #Get the family argument as a function 
   family <- eval(parse(text = family))
   
@@ -30,7 +30,9 @@ get_formula <- function(component_num,
   
   if(!is.null(ranef_components)) {
   ranef_bit <- paste0("+(",paste(unlist(ranef_components), collapse = "+"), "|",categorical_var, ")")
-  } 
+  } else {
+    ranef_bit <- NULL
+  }
 
   # Define the formula as a string to be evaluated 
   form_obj <- paste0(outcome,"~",group_label_1, "+", "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))",ranef_bit)
