@@ -39,7 +39,6 @@ get_formula <- function(component_num,
   # Convert string into formula
   formula <- as.formula(form_obj)
   
-  
   #generate the cglmm object 
   cc_obj <- 
     GLMMcosinor::cglmm(

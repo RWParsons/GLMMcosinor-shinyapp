@@ -15,18 +15,6 @@ source("get_formula.R")
 
 
 
-# Initialize a counter_seq reactiveVal
-# counter_seq <- reactiveVal(NULL)
-# 
-# # Function to update counter_seq
-# updateCounterSeq <- function(value, add = TRUE) {
-#   current_seq <- counter_seq()
-#   if (add) {
-#     counter_seq(c(current_seq, value))
-#   } else {
-#     counter_seq(current_seq[current_seq != value])
-#   }
-# }
 
 ui <- fluidPage(
 
@@ -56,7 +44,7 @@ ui <- fluidPage(
           uiOutput("mixed_model"),
           uiOutput("random_effect_inputs"),
           uiOutput("categorical_var_mixed_mod"),
-          uiOutput("ui.add_ranef"),
+          uiOutput("add_ranef"),
           tags$br(),
           uiOutput("ui.action")
         ),
@@ -68,7 +56,11 @@ ui <- fluidPage(
            tags$hr(),
            plotOutput("plot"), 
            tags$hr(),
-           uiOutput("plot_toggles")
+           uiOutput("plot_toggles"),
+           uiOutput("plot_variables_ranef"),
+           tags$hr(),
+           tableOutput("table"), 
+           plotOutput("polar_plot")
            )
     )
 )
@@ -256,11 +248,11 @@ server <- function(input, output, session) {
   })
   
   
-  output$ui.add_ranef <- renderUI({
+  output$add_ranef <- renderUI({
     if (is.null(input$file1)) {
       return()
     }
-    actionButton("add_ranef", "Add random effect term")
+    checkboxInput("add_ranef", label= "Add random effect term", FALSE)
   })
   
   
@@ -273,15 +265,13 @@ server <- function(input, output, session) {
     if(is.null(input$component_num)) {
       return(NULL)
     }
-    # Get the current set of options
-    current_options <- options_list$options
-    counter(counter() + 1)
-    # updateCounterSeq(counter(), TRUE) 
     
+    component_num <- input$component_num
+    
+
     #create the initial set of options 
     current_options <- options_list$options
 
-    component_num <- input$component_num
 
     get_new_options <- function (cols, component_num) {
       new_options <- list(
@@ -290,9 +280,7 @@ server <- function(input, output, session) {
         ,
         lapply(1:(component_num), function(i) {
           checkboxInput(paste0("amp_acro", i), label = paste("Add component", i, "as random effect"))
-        }), 
-        actionButton(paste0("remove_button", counter()), "Remove")
-      )
+        })      )
       return(new_options)
     }
     # Create a new set of random effect and categorical variable options together
@@ -300,9 +288,10 @@ server <- function(input, output, session) {
     
 
     #names(new_options) <- rep(paste0("ranef_part",(counter())), length(new_options))
-    options_list$options[[paste0("ranef_",counter())]] <- new_options
+    options_list$options[["ranef"]] <- new_options
 
 
+    if(input$add_ranef) {
     output$random_effect_inputs <- renderUI({
       tagList(
       HTML("<hr>"),  # Add a horizontal line as a separator
@@ -310,43 +299,19 @@ server <- function(input, output, session) {
       HTML("<hr>")  # Add a horizontal line as a separator
       )
     })
-
-
-    if(!is.null(input$random_effect_inputs)) {
-      ranef_components <- input$random_effect_inputs
-
+    ranef_components <- input$random_effect_inputs
     } else {
       ranef_components <- NULL
+      output$random_effect_inputs <- renderUI({
+        return()
+      })
+      
     }
     
     
-    #Remove the button after activation 
-    output$ui.add_ranef <- renderUI({
-        return()
-    })
-    
-    
   })
 
-  observe({
-    for (i in counter())
-      observeEvent(input[[paste0("remove_button",i)]],{
-        # options_list$options <- options_list$options[-((3*(i-1)+1):(3*(i)))]
-        options_list$options[[paste0("ranef_",i)]] <- NULL
-        
-        #Reshow the add_ranef button 
-        output$ui.add_ranef <- renderUI({
-          if (is.null(input$file1)) {
-            return()
-          }
-          actionButton("add_ranef", "Add random effect term")
-        })
-        
-      })
-    
-  })
   
-
   
   observeEvent(input$action, {
     isolate({
@@ -361,7 +326,7 @@ server <- function(input, output, session) {
       } else {
         group <- input$group 
       }
-      
+
       component_num <- input$component_num
       
       
@@ -371,6 +336,8 @@ server <- function(input, output, session) {
         input[[paste0("period_input_", i)]]
       })
 
+
+      if(input$add_ranef){
       k = 1
       random_effect_values <- NULL
       for (i in 1:component_num) {
@@ -380,14 +347,21 @@ server <- function(input, output, session) {
         } else {
           random_effect_values[[i]] <- NULL
         }
+      }} else {
+        random_effect_values <- NULL
       }
       
 
       
       #store a vector of ccomponents with random effects selected
-      ranef_components <- random_effect_values
-      categorical_var <- input$mixed_mod_var
       
+      ranef_components <- random_effect_values
+      
+      if(input$add_ranef){
+      categorical_var <- input$mixed_mod_var
+      } else {
+      categorical_var <- NULL 
+      }
       
     cc_obj <- get_formula(
       component_num = component_num, 
@@ -403,7 +377,6 @@ server <- function(input, output, session) {
       )
     
     })
-    
     output$contents <- renderText({
       if (inherits(cc_obj, "error")) {
         return(cc_obj$message)
@@ -412,10 +385,7 @@ server <- function(input, output, session) {
     })
     
     output$plot <- renderPlot({
-      # if (!inherits(cc_obj, "list")) {
-      #   return(NULL)
-      # }
-      
+
 
       if (is.null(input$plot_variables) || length(input$plot_variables) == 0) {
         superimpose_arg <- FALSE  # Default value when no toggles are selected
@@ -425,17 +395,54 @@ server <- function(input, output, session) {
         superimpose_arg <- "superimpose data" %in% input$plot_variables
         predict_arg <- "predict ribbon" %in% input$plot_variables
       }
+
+      if(input$add_ranef) {
+        
+        if(is.null(input$plot_variables_ranef) || length(input$plot_variables_ranef) == 0){
+        ranef_bit <- NULL
+        } else {
+          if ("Plot distinct random effects" %in% input$plot_variables_ranef) {
+          ranef_bit <- categorical_var
+          } else {
+            ranef_bit <- NULL 
+          }
+        }
+      } else {
+        ranef_bit <- NULL
+      }
       
       autoplot(cc_obj,
                superimpose.data = superimpose_arg,
-               predict.ribbon = predict_arg
+               predict.ribbon = predict_arg, 
+               ranef_plot = ranef_bit
       )
+    })
+    output$table <- renderTable({
+      sum_obj <- summary(cc_obj)
+      sum_obj[["transformed.table"]]
+    }, rownames = TRUE, digits = 5)
+    output$polar_plot <- renderPlot({
+      component_num <- input$component_num
+      if(component_num>1) {
+      polar_plot(cc_obj, component_index = 1:component_num)
+      } else {
+      polar_plot(cc_obj)
+        
+      }
+
     })
     
     output$plot_toggles <- renderUI({
       checkboxGroupInput('plot_variables', 'Plot options:',
                          c("superimpose data",
                            "predict ribbon"))
+    })
+    output$plot_variables_ranef <- renderUI({
+      if (input$add_ranef) {
+      checkboxGroupInput('plot_variables_ranef', "", "Plot distinct random effects")
+      } else {
+        return(NULL)
+      }
     })
     
     
