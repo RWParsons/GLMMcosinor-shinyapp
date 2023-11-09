@@ -7,7 +7,8 @@ get_formula <- function(component_num,
                         time, 
                         period_values, 
                         ranef_components, 
-                        categorical_var
+                        categorical_var, 
+                        ranef_int
                         ) {
 
 
@@ -27,8 +28,14 @@ get_formula <- function(component_num,
     group_label_2 <- NULL 
   }
   
+  if(!is.null(ranef_int)){
+    ranef_int_paste <- paste0("+",ranef_int)
+  } else {
+    ranef_int_paste <- NULL
+  }
+  
   if(!is.null(ranef_components)) {
-  ranef_bit <- paste0("+(",paste(unlist(ranef_components), collapse = "+"), "|",categorical_var, ")")
+  ranef_bit <- paste0("+(1",ranef_int_paste,paste("+",unlist(ranef_components),collapse = "+"), "|",categorical_var, ")")
   } else {
     ranef_bit <- NULL
   }
@@ -38,7 +45,6 @@ get_formula <- function(component_num,
   
   # Convert string into formula
   formula <- as.formula(form_obj)
-  
   #generate the cglmm object 
   cc_obj <- 
     GLMMcosinor::cglmm(

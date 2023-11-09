@@ -43,6 +43,7 @@ ui <- fluidPage(
           uiOutput("period_inputs"),
           uiOutput("mixed_model"),
           uiOutput("random_effect_inputs"),
+          uiOutput("random_effect_intercept_inputs"),
           uiOutput("categorical_var_mixed_mod"),
           uiOutput("add_ranef"),
           tags$br(),
@@ -173,14 +174,6 @@ server <- function(input, output, session) {
     }
     selectInput("outcome", "Select the OUTCOME (DEPENDENT) variable from:", cols())
   })
-  
-  # output$component_num <- renderText({
-  #   if(is.null(cols())) {
-  #     return(NULL)
-  #   }
-  #   component_num <- input$component_num
-  # })
-  # 
 
   random_effect_values <- reactiveValues(values = NULL)
 
@@ -193,7 +186,7 @@ server <- function(input, output, session) {
         return(NULL)
       } 
       component_num <- input$component_num
-
+      group <- input$group 
    
     period_inputs <- lapply(1:component_num, function(i) {
       numericInput(paste0("period_input_", i), label = paste0("Period for Component ", i,":"), value = 1, min = 1, step = 1) 
@@ -201,16 +194,9 @@ server <- function(input, output, session) {
     random_effect_inputs <- lapply(1:component_num,function(i){
       checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
     })
+    
+    random_effect_intercept_inputs <- checkboxInput("group_ranef",label = paste("Add group:",group, "as random effect"))
 
-    # Initialize a new vector to store the combined values
-    # combined_vector <- character(length(period_inputs) + length(random_effect_inputs))
-    # 
-    # # Interleave the elements
-    # for (i in 1:length(period_inputs)) {
-    #   combined_vector[(i - 1) * 2 + 1] <- period_inputs[i]
-    #   combined_vector[i * 2] <- random_effect_inputs[i]
-    # }
-    # 
   
     output$period_inputs <- renderUI({
       if(is.null(cols())) {
@@ -220,20 +206,6 @@ server <- function(input, output, session) {
       period_inputs
     })
   
-    # output$random_effect_toggle <- renderUI({
-    #   if(is.null(cols())) {
-    #     return(NULL)
-    #   }
-    #   random_effect_values
-    # })
-    
-    # output$show_formula_toggle <- renderUI({
-    #   if(is.null(cols())) {
-    #     return(NULL)
-    #   }
-    #   checkboxInput("show_formula", "Show formula", FALSE)
-    #   
-    # })
   })
 
 
@@ -273,18 +245,30 @@ server <- function(input, output, session) {
     current_options <- options_list$options
 
 
-    get_new_options <- function (cols, component_num) {
+    get_new_options <- function (cols, component_num,group) {
       new_options <- list(
         
        selectInput(paste0("mixed_mod_var"), paste("Select a random variable", ":"), cols())
         ,
         lapply(1:(component_num), function(i) {
           checkboxInput(paste0("amp_acro", i), label = paste("Add component", i, "as random effect"))
-        })      )
+        }))
+      
+      if(!is.null(group)){
+        random_effect_intercept_inputs <- checkboxInput("group_ranef",label = paste("Add group:",group, "as random effect"))
+        new_options[["int_term"]] <- random_effect_intercept_inputs
+      }
+      
       return(new_options)
     }
     # Create a new set of random effect and categorical variable options together
-    new_options <- get_new_options(cols(), component_num)
+    
+    if(input$group == "None (default)") {
+      group = NULL
+    } else {
+      group = input$group 
+    }
+    new_options <- get_new_options(cols(), component_num, group)
     
 
     #names(new_options) <- rep(paste0("ranef_part",(counter())), length(new_options))
@@ -357,10 +341,15 @@ server <- function(input, output, session) {
       
       ranef_components <- random_effect_values
       
+      ranef_int <- NULL
       if(input$add_ranef){
       categorical_var <- input$mixed_mod_var
-      } else {
-      categorical_var <- NULL 
+      if(!is.null(input$group_ranef)) {
+        if(input$group_ranef) {
+          ranef_int <- input$group
+        }}} else {
+      categorical_var <- NULL
+      ranef_int <- NULL
       }
       
     cc_obj <- get_formula(
@@ -371,9 +360,10 @@ server <- function(input, output, session) {
       add_interaction = input$add_interaction,
       outcome = input$outcome, 
       time = input$time, 
-      period_values <- period_values, 
-      ranef_components <- ranef_components, 
-      categorical_var = categorical_var
+      period_values = period_values, 
+      ranef_components = ranef_components, 
+      categorical_var = categorical_var, 
+      ranef_int = ranef_int
       )
     
     })
@@ -448,71 +438,6 @@ server <- function(input, output, session) {
     
 
   })
-  
-  
-
-  #   # Reactive expression to generate the formula based on user inputs
-  # formula_text <- reactive({
-  #   if(is.null(cols()) || is.null(input$show_formula)) {
-  #     return(NULL)
-  #   } else {
-  #     if(!input$show_formula) {
-  #       return(NULL)
-  #     }
-  #   
-  #   if(is.null(input$component_num)) {
-  #     component_num <- 1
-  #     period_values <- 1
-  #   } else {
-  #     component_num <- input$component_num
-  #     period_inputs <- lapply(1:component_num, function(i) {
-  #       numericInput(paste0("period_input_", i), label = paste("Period for Component", i), value = 1, min = 1, step = 1)  
-  #     })
-  #     values <- sapply(1:component_num, function(i) {
-  #       input[[paste0("period_input_", i)]]
-  #     })
-  #     
-  #     period_values <- values
-  #   }
-  #   
-  #   if (!is.null(input$file1$name)) {
-  #     file_name <- sub(".csv$", "", input$file1$name)
-  #   } else {
-  #     file_name <- "NULL"
-  #   }
-  #     
-  #     
-  #     browser()
-  #     if(!is.null(categorical_var)){
-  #       categorical_var <- input$mixed_mod_var
-  #     }
-  #   
-  #   form_obj <- get_UI_formula(
-  #     component_num = component_num, 
-  #     df = df,
-  #     family_arg = input$family, 
-  #     group = input$group, 
-  #     add_interaction = input$add_interaction,
-  #     outcome = input$outcome, 
-  #     time = input$time, 
-  #     period_values <- period_values, 
-  #     file_name <- file_name, 
-  #     categorical_var <- categorical_var, 
-  #     input <- input
-  #   )
-  #   
-  #   
-  #   
-  #   return(form_obj)
-  #   }
-  # })
-  # 
-  # # Render the formula text in the UI
-  # output$formula_text <- renderText({
-  #   formula_text()
-  # })
-  # 
-  # 
   
 }
 
