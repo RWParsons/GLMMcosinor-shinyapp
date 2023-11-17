@@ -42,10 +42,10 @@ ui <- fluidPage(
           uiOutput("component_selector"),
           uiOutput("period_inputs"),
           uiOutput("mixed_model"),
+          uiOutput("add_ranef"),
           uiOutput("random_effect_inputs"),
           uiOutput("random_effect_intercept_inputs"),
           uiOutput("categorical_var_mixed_mod"),
-          uiOutput("add_ranef"),
           tags$br(),
           uiOutput("ui.action")
         ),
@@ -60,7 +60,17 @@ ui <- fluidPage(
            uiOutput("plot_toggles"),
            uiOutput("plot_variables_ranef"),
            tags$hr(),
-           tableOutput("table"), 
+           tableOutput("table"),
+           tags$hr(),
+           uiOutput("choose_comparison"),
+           uiOutput("config_comparison"),
+           tags$hr(),
+           uiOutput("comparison_title"),
+           uiOutput("comparison_text"),
+           tags$hr(),
+           uiOutput("comparison_title2"),
+           uiOutput("comparison_text2"),
+           tags$hr(),
            plotOutput("polar_plot")
            )
     )
@@ -94,6 +104,19 @@ server <- function(input, output, session) {
     }
     
   })
+  
+  coef_names <- function(cc_obj,param, type){
+
+    if(type == "group") {
+      filtered_coef_names <- cc_obj$group_stats[[input$group]]
+    }
+    
+    if(type == "component") {
+      filtered_coef_names <- seq(1:input$component_num)
+    }
+
+    return(filtered_coef_names)
+  }
   
   
   group_col <- reactive({
@@ -195,7 +218,7 @@ server <- function(input, output, session) {
       checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
     })
     
-    random_effect_intercept_inputs <- checkboxInput("group_ranef",label = paste("Add group:",group, "as random effect"))
+    random_effect_intercept_inputs <- checkboxInput("group_ranef",label = paste("Add group:",paste(group), "as random effect"))
 
   
     output$period_inputs <- renderUI({
@@ -226,6 +249,8 @@ server <- function(input, output, session) {
     }
     checkboxInput("add_ranef", label= "Add random effect term", FALSE)
   })
+  
+
   
   
 
@@ -366,13 +391,240 @@ server <- function(input, output, session) {
       ranef_int = ranef_int
       )
     
+
     })
+    
     output$contents <- renderText({
       if (inherits(cc_obj, "error")) {
         return(cc_obj$message)
       }
      cc_obj
     })
+    
+    output$choose_comparison <- renderUI({
+      if (inherits(cc_obj, "error")) {
+        return(cc_obj$message)
+      }
+      
+      comp_choices <- NULL
+      
+      #get the number of levels within the selected group 
+      group_levels <- cc_obj$group_stats[[input$group]]
+      
+      #get the number of components 
+      component_number <- input$component_num
+      
+      if(length(group_levels)>1) {
+        comp_choices <- append(comp_choices, "group")
+      }
+      if(component_number > 1) {
+        comp_choices <- append(comp_choices, "component")
+      }
+      
+      if (length(group_levels)>1 && component_number > 1){
+        comp_choices <- append(comp_choices, "both group and component")
+      }
+      
+      if(is.null(comp_choices)){
+        return(NULL)
+      }
+      
+      selectInput("choose_comparison", label = "select what type of comparison:", 
+                  choices = comp_choices)
+    })
+
+    output$config_comparison <- renderUI({
+      if (inherits(cc_obj, "error")) {
+        return(cc_obj$message)
+      }
+
+      if (is.null(input$choose_comparison)) {
+        return(NULL)
+      }
+
+      # selectInput("config_comparison", label= "Compare amplitudes", choices = coef_names(cc_obj))
+      if(input$choose_comparison == "group") {
+        input_selector <- list(selectInput("config_comparison1", 
+                                           label = "choose reference group:", 
+                                           choices = coef_names(cc_obj, "amp", "group")),
+                               actionButton("run_comparison","compare"))        
+      }
+      
+      if(input$choose_comparison == "component") {
+        input_selector <- list(selectInput("config_comparison2", 
+                                           label = "choose reference component:", 
+                                           choices = coef_names(cc_obj, "amp", "component")),
+                               actionButton("run_comparison","compare"))        
+      }
+      
+      if(input$choose_comparison == "both group and component") {
+        input_selector <- list(selectInput("config_comparison1", 
+                                           label = "choose reference group:", 
+                                           choices = coef_names(cc_obj, "amp", "group")),
+                               selectInput("config_comparison2", 
+                                           label = "choose reference component:", 
+                                           choices = coef_names(cc_obj, "amp", "component")),
+                               actionButton("run_comparison","compare"))        
+      }
+      
+     
+      
+      
+# 
+#         if(input$add_comparison == "amplitude") {
+#           input_selector <- list(selectInput("config_comparison1", 
+#                                              label= "Choose reference amplitude:", 
+#                                              choices = coef_names(cc_obj, "amp", comparison_type)),
+#                                  actionButton("run_comparison", "compare"))
+#       
+#           
+#         }
+# 
+#         if(input$add_comparison == "acrophase") {
+#           input_selector <- list(selectInput("config_comparison1", 
+#                                              label= "Choose reference acrophase:", 
+#                                              choices = coef_names(cc_obj, "acr", comparison_type)),
+#                                  actionButton("run_comparison", "Compare"))
+#           
+#         }
+# 
+#         if(input$add_comparison == "MESOR") {
+#           input_selector <- list(selectInput("config_comparison1", 
+#                                              label= "Choose reference MESOR:", 
+#                                              choices = coef_names(cc_obj, "MESOR", comparison_type)),
+#                                  actionButton("run_comparison", "Compare"))
+#           
+#         }
+      input_selector
+    })
+    
+    observeEvent(input$run_comparison,{
+      ref_level <- input$config_comparison1
+      ref_comp <- input$config_comparison2
+      group_name <- input$group
+      if(group_name == "None (default)"){
+        group_name <- NULL
+      }
+      components <- input$component_num
+      
+
+      comp_table <- data.frame()
+      comp_table2 <- data.frame()
+      levels <- cc_obj$group_stats[[group_name]]
+      if(!is.null(group_name)){
+        comparison_levels <- levels[levels != ref_level]
+      }
+      counter = 0
+      counter2 = 0
+      for (param in c("amp","acr")) {
+      ##
+      # comp_table <- data.frame()
+      # levels <- cc_obj$group_stats[[group_name]]
+      # comparison_levels <- levels[levels != ref]
+      # counter = 0
+      if(input$choose_comparison %in% c("group", "both group and component")) {  
+      for (i in 1:components) {
+        
+        for (j in 1:length(comparison_levels)) {
+          counter = counter + 1
+          comp_output_param<- test_cosinor_levels(cc_obj,group_name, param = param,
+                                             comparison_A = ref_level,
+                                             comparison_B = comparison_levels[j], 
+                                             component_index = i)
+          ref_full <- round(cc_obj$coefficients[paste0(group_name,ref_level,":",param,i)], digits = 5)
+          comp_table[counter,1] <- paste0("[",paste0(group_name,ref_level,":",param,i),"] = ",ref_full)
+          comp_table[counter,2] <- paste0("[",group_name,"=",comparison_levels[j],"]:", param,i," = ",round(comp_output_param$ind.test$conf.int[1], digits = 5))
+          comp_table[counter,3:5] <- comp_output_param$ind.test$conf.int
+            
+          comp_table[counter,6] <- comp_output_param$ind.test$p.value
+
+          colnames(comp_table) = c("reference est.",'comparison est.',"difference","lower CI", "upper CI", "p-val")
+        }
+      }
+      }
+        
+      if(components > 1 && input$choose_comparison %in% c("component", "both group and component")) {
+        #for this, should just be able to append to existing table
+      ref_comp <- as.numeric(ref_comp)
+      levels <- cc_obj$group_stats[[group_name]]
+      comparison_components <- seq(components)[-ref_comp]
+
+      for (i in 1:length(levels)) {
+        for (j in 1:length(comparison_components)) {
+          counter2 = counter2 + 1
+          comp_output_param <-test_cosinor_components(cc_obj,group_name, param = param,
+                                                  comparison_A = ref_comp,
+                                                  comparison_B = comparison_components[j],
+                                                  level_index = as.integer(levels[i]))
+          if(is.null(group_name)){
+            ref_full <- round(cc_obj$coefficients[paste0(param,ref_comp)], digits = 5)
+            comp_table2[counter2,1] <- paste0("[",paste0(param,ref_comp),"] = ",ref_full)
+            comp_table2[counter2,2] <- paste0(param,comparison_components[j]," = ",round(comp_output_param$ind.test$conf.int[1], digits = 5))
+          } else {
+            ref_full <- round(cc_obj$coefficients[paste0(group_name,levels[i],":",param,ref_comp)], digits = 5)
+            comp_table2[counter2,1] <- paste0("[",paste0(group_name,levels[i],":",param,ref_comp),"] = ",ref_full)
+            comp_table2[counter2,2] <- paste0("[",group_name,"=",levels[i],"]:", param,comparison_components[j]," = ",round(comp_output_param$ind.test$conf.int[1], digits = 5))
+          }
+
+          comp_table2[counter2,3:5] <- comp_output_param$ind.test$conf.int
+          comp_table2[counter2,6] <- comp_output_param$ind.test$p.value
+          colnames(comp_table2) = c("reference est.",'comparison est.',"difference","lower CI", "upper CI", "p-val")
+          
+          
+        }
+      }
+      }
+      
+      } 
+      ##
+      
+      # if(comparison_type == "group") {
+      #   comp_output <- test_cosinor_levels(cc_obj,group_name, param = param,
+      #                       comparison_A = ref,
+      #                       comparison_B = comp, 
+      #                       component_index = 1)
+      # }
+      
+      if(input$choose_comparison %in% c("group", "both group and component")) {
+        output$comparison_title <- renderText({
+          # Wrap the text in HTML tags for bold formatting
+          bold_text <- "<b>Group comparison</b>"
+          HTML(bold_text)
+        })
+        
+      output$comparison_text <- renderTable({
+        comp_table
+      }, digits = 5)
+      } else {
+        output$comparison_text <- NULL
+      }
+      
+      if(components > 1 && input$choose_comparison %in% c("component", "both group and component")) {
+      output$comparison_title2 <- renderText({
+        # Wrap the text in HTML tags for bold formatting
+        bold_text <- "<b>Component comparison</b>"
+        HTML(bold_text)
+        })
+        
+      output$comparison_text2 <- renderTable({
+        comp_table2
+      }, digits = 5)
+      } else {
+        output$comparison_text2 <- NULL
+      }
+      
+    })
+    
+    # output$comparison_analysis <- renderText({
+    #   
+    # })
+    
+    
+
+      
+
+    
+    # selectInput("add_comparison", label= "Comparison test", choices = names(cc_obj$coefficients))
     
     output$plot <- renderPlot({
 
@@ -407,10 +659,12 @@ server <- function(input, output, session) {
                ranef_plot = ranef_bit
       )
     })
+    
     output$table <- renderTable({
       sum_obj <- summary(cc_obj)
       sum_obj[["transformed.table"]]
     }, rownames = TRUE, digits = 5)
+    
     output$polar_plot <- renderPlot({
       component_num <- input$component_num
       if(component_num>1) {
