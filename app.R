@@ -50,29 +50,38 @@ ui <- fluidPage(
           uiOutput("ui.action")
         ),
 
-        # Show a plot of the generated distribution
         mainPanel(
-          # uiOutput("show_formula_toggle"),
-           textOutput("formula_text"),
-           tags$hr(),
-           plotOutput("plot"), 
-           tags$hr(),
-           uiOutput("plot_toggles"),
-           uiOutput("plot_variables_ranef"),
-           tags$hr(),
-           tableOutput("table"),
-           tags$hr(),
-           uiOutput("choose_comparison"),
-           uiOutput("config_comparison"),
-           tags$hr(),
-           uiOutput("comparison_title"),
-           uiOutput("comparison_text"),
-           tags$hr(),
-           uiOutput("comparison_title2"),
-           uiOutput("comparison_text2"),
-           tags$hr(),
-           plotOutput("polar_plot")
-           )
+          
+          #Output as tabs
+          tabsetPanel(type = "tabs", 
+                      tabPanel("Plots", 
+                               plotOutput("plot"),
+                               tags$hr(),
+                               uiOutput("plot_toggles"),
+                               uiOutput("xbounds"),
+                               uiOutput("plot_variables_ranef"), 
+                               tags$hr(),
+                               plotOutput("polar_plot")
+                               ),
+                      tabPanel("Summary",
+                               tableOutput("table")
+                               ),
+                      tabPanel("Comparison",
+                               uiOutput("choose_comparison"),
+                               uiOutput("config_comparison"),
+                               tags$hr(),
+                               uiOutput("comparison_title"),
+                               uiOutput("comparison_text"),
+                               tags$hr(),
+                               uiOutput("comparison_title2"),
+                               uiOutput("comparison_text2")),
+                      tabPanel("Data",
+                               uiOutput("dataframe"))
+                      )
+
+
+
+        )
     )
 )
 
@@ -91,6 +100,16 @@ server <- function(input, output, session) {
       return(NULL)
     }
     read.csv(infile$datapath)
+  })
+  
+  
+  
+  output$dataframe <- renderTable({
+    if(is.null(input$file1)) {
+      return()
+    }
+    df <- filedata()
+    df
   })
   
   
@@ -429,7 +448,7 @@ server <- function(input, output, session) {
         return(NULL)
       }
       
-      selectInput("choose_comparison", label = "select what type of comparison:", 
+      selectInput("choose_comparison", label = "Choose the type of comparison:", 
                   choices = comp_choices)
     })
 
@@ -445,14 +464,14 @@ server <- function(input, output, session) {
       # selectInput("config_comparison", label= "Compare amplitudes", choices = coef_names(cc_obj))
       if(input$choose_comparison == "group") {
         input_selector <- list(selectInput("config_comparison1", 
-                                           label = "choose reference group:", 
+                                           label = "choose a reference group:", 
                                            choices = coef_names(cc_obj, "amp", "group")),
                                actionButton("run_comparison","compare"))        
       }
       
       if(input$choose_comparison == "component") {
         input_selector <- list(selectInput("config_comparison2", 
-                                           label = "choose reference component:", 
+                                           label = "choose a reference component:", 
                                            choices = coef_names(cc_obj, "amp", "component")),
                                actionButton("run_comparison","compare"))        
       }
@@ -538,7 +557,7 @@ server <- function(input, output, session) {
             
           comp_table[counter,6] <- comp_output_param$ind.test$p.value
 
-          colnames(comp_table) = c("reference est.",'comparison est.',"difference","lower CI", "upper CI", "p-val")
+          colnames(comp_table) = c("reference est.",'comparison est.',"difference","lower CI", "upper CI", "p-value")
         }
       }
       }
@@ -568,7 +587,7 @@ server <- function(input, output, session) {
 
           comp_table2[counter2,3:5] <- comp_output_param$ind.test$conf.int
           comp_table2[counter2,6] <- comp_output_param$ind.test$p.value
-          colnames(comp_table2) = c("reference est.",'comparison est.',"difference","lower CI", "upper CI", "p-val")
+          colnames(comp_table2) = c("reference est.",'comparison est.',"difference","lower CI", "upper CI", "p-value")
           
           
         }
@@ -653,10 +672,19 @@ server <- function(input, output, session) {
         ranef_bit <- NULL
       }
       
+      if((is.null(input$xmin) || is.null(input$xmax)) || !("custom domain" %in% input$plot_variables)){
+      xmin <- min(cc_obj$newdata[cc_obj$time_name])
+      xmax <- max(cc_obj$newdata[cc_obj$time_name])
+      } else {
+        xmin <- input$xmin
+        xmax <- input$xmax
+      }
+      
       autoplot(cc_obj,
                superimpose.data = superimpose_arg,
                predict.ribbon = predict_arg, 
-               ranef_plot = ranef_bit
+               ranef_plot = ranef_bit,
+               xlims = c(xmin,xmax)
       )
     })
     
@@ -677,9 +705,27 @@ server <- function(input, output, session) {
     })
     
     output$plot_toggles <- renderUI({
+    
       checkboxGroupInput('plot_variables', 'Plot options:',
                          c("superimpose data",
-                           "predict ribbon"))
+                           "predict ribbon", 
+                           "custom domain"))
+      
+    })
+    
+    output$xbounds <- renderUI({
+      if(!("custom domain" %in% input$plot_variables)){
+        return(NULL)
+      } else{
+        xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+        xmax <- round(max(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+        xbound_list <- list(
+          numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
+          numericInput('xmax', label = "x-max", value = xmax, width = "250px") 
+        )
+        xbound_list 
+      }
+
     })
     output$plot_variables_ranef <- renderUI({
       if (input$add_ranef) {
