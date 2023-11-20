@@ -6,12 +6,12 @@
 #
 #    http://shiny.rstudio.com/
 #
+#devtools::install_github("https://github.com/RWParsons/GLMMcosinor")
 
 library(shiny)
-library(shinyFiles)
 library(GLMMcosinor)
-library(shinyjs)
 source("get_formula.R")
+source("get_pred_length_out.R")
 
 
 
@@ -21,7 +21,7 @@ ui <- fluidPage(
     # Application title
     titlePanel("GLMMcosinor"),
 
-    useShinyjs(),
+    
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
         sidebarPanel(
@@ -59,6 +59,7 @@ ui <- fluidPage(
                                tags$hr(),
                                uiOutput("plot_toggles"),
                                uiOutput("xbounds"),
+                               uiOutput("prediction_length"),
                                uiOutput("plot_variables_ranef"), 
                                tags$hr(),
                                plotOutput("polar_plot")
@@ -550,7 +551,14 @@ server <- function(input, output, session) {
                                              comparison_A = ref_level,
                                              comparison_B = comparison_levels[j], 
                                              component_index = i)
-          ref_full <- round(cc_obj$coefficients[paste0(group_name,ref_level,":",param,i)], digits = 5)
+          
+          #If n_components = 1 in cc_obj, then the coefficients output will have no component suffix, so
+          #so, capturing the reference value from this output must be adjusted 
+          if(component_num == 1){
+            ref_full <- round(cc_obj$coefficients[paste0(group_name,ref_level,":",param)], digits = 5)
+          } else {
+            ref_full <- round(cc_obj$coefficients[paste0(group_name,ref_level,":",param,i)], digits = 5)
+          }
           comp_table[counter,1] <- paste0("[",paste0(group_name,ref_level,":",param,i),"] = ",ref_full)
           comp_table[counter,2] <- paste0("[",group_name,"=",comparison_levels[j],"]:", param,i," = ",round(comp_output_param$ind.test$conf.int[1], digits = 5))
           comp_table[counter,3:5] <- comp_output_param$ind.test$conf.int
@@ -615,6 +623,7 @@ server <- function(input, output, session) {
         comp_table
       }, digits = 5)
       } else {
+        output$comparison_title <- NULL
         output$comparison_text <- NULL
       }
       
@@ -629,6 +638,7 @@ server <- function(input, output, session) {
         comp_table2
       }, digits = 5)
       } else {
+        output$comparison_title2 <- NULL
         output$comparison_text2 <- NULL
       }
       
@@ -653,8 +663,8 @@ server <- function(input, output, session) {
         predict_arg <- FALSE
       } else {
         # Determine values based on selected toggles
-        superimpose_arg <- "superimpose data" %in% input$plot_variables
-        predict_arg <- "predict ribbon" %in% input$plot_variables
+        superimpose_arg <- "Overlay original data" %in% input$plot_variables
+        predict_arg <- "Show prediction interval " %in% input$plot_variables
       }
 
       if(input$add_ranef) {
@@ -672,7 +682,8 @@ server <- function(input, output, session) {
         ranef_bit <- NULL
       }
       
-      if((is.null(input$xmin) || is.null(input$xmax)) || !("custom domain" %in% input$plot_variables)){
+      #Set xlims based on user input
+      if((is.null(input$xmin) || is.null(input$xmax)) || !("Specify plot window " %in% input$plot_variables)){
       xmin <- min(cc_obj$newdata[cc_obj$time_name])
       xmax <- max(cc_obj$newdata[cc_obj$time_name])
       } else {
@@ -680,11 +691,20 @@ server <- function(input, output, session) {
         xmax <- input$xmax
       }
       
+      #Fitted model resolution
+      if((is.null(input$prediction_length)) || !("Fitted model resolution" %in% input$plot_variables)){
+        prediction_length_arg <- get_pred_length_out(cc_obj)
+      } else {
+        prediction_length_arg <- input$prediction_length
+      }
+      
+      
       autoplot(cc_obj,
                superimpose.data = superimpose_arg,
                predict.ribbon = predict_arg, 
                ranef_plot = ranef_bit,
-               xlims = c(xmin,xmax)
+               xlims = c(xmin,xmax), 
+               pred.length.out = prediction_length_arg
       )
     })
     
@@ -693,10 +713,18 @@ server <- function(input, output, session) {
       sum_obj[["transformed.table"]]
     }, rownames = TRUE, digits = 5)
     
+    
+    
     output$polar_plot <- renderPlot({
       component_num <- input$component_num
+      polar_plot_list <- list()
       if(component_num>1) {
-      polar_plot(cc_obj, component_index = 1:component_num)
+      
+      for (i in 1:component_num){
+        polar_plot_list[[i]] <- polar_plot(cc_obj, component_index = i)
+      }
+      polar_plot_list[[2]] 
+      #polar_plot(cc_obj, component_index = 1:component_num)
       } else {
       polar_plot(cc_obj)
         
@@ -707,14 +735,15 @@ server <- function(input, output, session) {
     output$plot_toggles <- renderUI({
     
       checkboxGroupInput('plot_variables', 'Plot options:',
-                         c("superimpose data",
-                           "predict ribbon", 
-                           "custom domain"))
+                         c("Overlay original data",
+                           "Show prediction interval ", 
+                           "Specify plot window ", 
+                           "Fitted model resolution"))
       
     })
     
     output$xbounds <- renderUI({
-      if(!("custom domain" %in% input$plot_variables)){
+      if(!("Specify plot window " %in% input$plot_variables)){
         return(NULL)
       } else{
         xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
@@ -726,6 +755,16 @@ server <- function(input, output, session) {
         xbound_list 
       }
 
+    })
+    
+    output$prediction_length <- renderUI({
+      if(!("Fitted model resolution" %in% input$plot_variables)){
+        return(NULL)
+      } else{
+        default_pred.length.out <- get_pred_length_out(cc_obj)
+        numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px")
+         
+      }    
     })
     output$plot_variables_ranef <- renderUI({
       if (input$add_ranef) {
