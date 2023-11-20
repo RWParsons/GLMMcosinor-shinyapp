@@ -10,6 +10,7 @@
 
 library(shiny)
 library(GLMMcosinor)
+library(shinyjs)
 source("get_formula.R")
 source("get_pred_length_out.R")
 
@@ -62,7 +63,9 @@ ui <- fluidPage(
                                uiOutput("prediction_length"),
                                uiOutput("plot_variables_ranef"), 
                                tags$hr(),
-                               plotOutput("polar_plot")
+                               plotOutput("polar_plot"), 
+                               # Action buttons in a single row
+                               uiOutput("polar_plot_selector")
                                ),
                       tabPanel("Summary",
                                tableOutput("table")
@@ -88,9 +91,7 @@ ui <- fluidPage(
 
 # Initialize a reactiveValues to store the sets of options
 options_list <- reactiveValues(options = list())
-counter <- reactiveVal(0)  # Initialize a counter
-counter_values <- reactiveVal(1)
-counter_seq <- reactiveVal(0)
+#counter <- reactiveVal(0) 
 
 
 #Define server logic. Generates a plot using autoplot()
@@ -225,16 +226,21 @@ server <- function(input, output, session) {
   ranef_values <- reactiveValues(values = NULL)
     observe({
       
-      if(is.null(component_col())){
+      # if(is.null(component_col())){
+      #   return(NULL)
+      # } 
+      
+      if(is.null(input$component_num) || is.na(input$component_num) || input$component_num == 0){
         return(NULL)
-      } 
+      }
+      
       component_num <- input$component_num
       group <- input$group 
    
-    period_inputs <- lapply(1:component_num, function(i) {
+    period_inputs <- lapply(seq_len(component_num), function(i) {
       numericInput(paste0("period_input_", i), label = paste0("Period for Component ", i,":"), value = 1, min = 1, step = 1) 
     })
-    random_effect_inputs <- lapply(1:component_num,function(i){
+    random_effect_inputs <- lapply(seq_len(component_num),function(i){
       checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
     })
     
@@ -713,23 +719,59 @@ server <- function(input, output, session) {
       sum_obj[["transformed.table"]]
     }, rownames = TRUE, digits = 5)
     
+    # Update plot based on user interaction
+    polar_plot_index <- reactiveVal(1)
+    plotGenerated <- reactiveVal(FALSE)
     
+    output$polar_plot_selector <- renderUI({
+      if(!plotGenerated() || input$component_num == 1){
+        return(NULL)
+      }
+      # Enable/disable nextButton based on conditions
+      if(polar_plot_index() == input$component_num){
+        shinyjs::disable("nextButton")
+      }
+      
+      if(polar_plot_index() == 1){
+        shinyjs::disable("prevButton")
+      }
+      
+      tagList(
+      fluidRow(
+        column(2, actionButton("prevButton", "Previous", icon("arrow-left")) 
+               ),
+        column(2, actionButton("nextButton", "Next", icon("arrow-right"))
+               )
+      )
+      )
+
+    })
+    
+    
+    observeEvent(input$nextButton, {
+      polar_plot_index(min(polar_plot_index() + 1, input$component_num))
+      output$polar_plot <- renderPlot({
+        polar_plot(cc_obj, component_index = polar_plot_index())
+      })
+    })
+    
+    observeEvent(input$prevButton, {
+      polar_plot_index(max(polar_plot_index() - 1, 1))
+      output$polar_plot <- renderPlot({
+        polar_plot(cc_obj, component_index = polar_plot_index())
+      })
+    })
     
     output$polar_plot <- renderPlot({
       component_num <- input$component_num
-      polar_plot_list <- list()
       if(component_num>1) {
-      
-      for (i in 1:component_num){
-        polar_plot_list[[i]] <- polar_plot(cc_obj, component_index = i)
-      }
-      polar_plot_list[[2]] 
-      #polar_plot(cc_obj, component_index = 1:component_num)
+      polar_plot_object <- polar_plot(cc_obj, component_index = polar_plot_index())
       } else {
-      polar_plot(cc_obj)
-        
+      polar_plot_object <- polar_plot(cc_obj, show_component_labels  = FALSE)
       }
-
+      plotGenerated(TRUE)
+      return(polar_plot_object)
+      
     })
     
     output$plot_toggles <- renderUI({
