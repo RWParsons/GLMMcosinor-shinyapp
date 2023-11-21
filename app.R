@@ -1,19 +1,9 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+#Shiny app for the GLMMcosinor R package 
 #devtools::install_github("https://github.com/RWParsons/GLMMcosinor")
 
 library(shiny)
 library(GLMMcosinor)
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
-# source("R/get_formula.R")
-# source("R/get_pred_length_out.R")
-# source("R/get_comparison_table.R")
 
 
 ui <- fluidPage(
@@ -621,6 +611,7 @@ server <- function(input, output, session) {
       polar_plot_toggle()
       polar_plot_overlay_parameter_info()
       polar_plot_ellipse_opacity()
+      polar_plot_clockwise()
       output$polar_plot <- renderPlot({
         component_num <- input$component_num
         if(is.null(input$polar_plot_view_toggle)){
@@ -645,6 +636,16 @@ server <- function(input, output, session) {
           ellipse_opacity <- input$ellipse_opacity
         }
         
+        if(is.null(input$clockwise) || !input$clockwise){
+          clockwise <- FALSE
+          start = "right"
+          radial_units = c("radians")
+        } else {
+          clockwise <- TRUE
+          start = "top"
+          radial_units = c("radians")
+        }
+        
         
         polar_plot_object <- polar_plot(cc_obj, 
                                         component_index = polar_plot_index(), 
@@ -652,7 +653,10 @@ server <- function(input, output, session) {
                                         view = view, 
                                         overlay_parameter_info = polar_plot_overlay_parameter_info, 
                                         ci_level = ci_level, 
-                                        ellipse_opacity = ellipse_opacity)
+                                        ellipse_opacity = ellipse_opacity, 
+                                        clockwise = clockwise, 
+                                        start = start,
+                                        radial_units = radial_units)
         
         plotGenerated(TRUE)
         return(polar_plot_object)
@@ -680,7 +684,8 @@ server <- function(input, output, session) {
       outputs <- list(selectInput('polar_plot_view_toggle', "Select view:",
                   c("full", "zoom","zoom_origin")),
       checkboxInput('overlay_parameter_info', 'show parameter info', FALSE), 
-      sliderInput("ellipse_opacity", "Confidence Ellipse opacity:", min = 0, max = 1, value = 0.3)
+      sliderInput("ellipse_opacity", "Confidence Ellipse opacity:", min = 0, max = 1, value = 0.3), 
+      checkboxInput("clockwise","24 hour clock view:", FALSE)
       )
       outputs
     })
@@ -689,6 +694,8 @@ server <- function(input, output, session) {
     polar_plot_toggle <- reactiveVal(input$polar_plot_toggles)
     polar_plot_overlay_parameter_info <- reactiveVal(input$overlay_parameter_info)
     polar_plot_ellipse_opacity <- reactiveVal(input$ellipse_opacity)
+    polar_plot_clockwise <- reactiveVal(input$clockwise)
+    
     ci_level <- reactiveVal({
       if(is.null(input$ci_level)){
         ci_level <- 0.95
