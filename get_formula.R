@@ -7,13 +7,13 @@ get_formula <- function(component_num,
                         time, 
                         period_values, 
                         ranef_components, 
-                        categorical_var, 
-                        ranef_int
+                        categorical_var
                         ) {
 
 
   #Get the family argument as a function 
   family <- eval(parse(text = family))
+  
   
   
   if(!is.null(add_interaction)){
@@ -28,14 +28,8 @@ get_formula <- function(component_num,
     group_label_2 <- NULL 
   }
   
-  if(!is.null(ranef_int)){
-    ranef_int_paste <- paste0("+",ranef_int)
-  } else {
-    ranef_int_paste <- NULL
-  }
-  
   if(!is.null(ranef_components)) {
-  ranef_bit <- paste0("+(1",ranef_int_paste,paste("+",unlist(ranef_components),collapse = "+"), "|",categorical_var, ")")
+  ranef_bit <- paste0("+(",paste(unlist(ranef_components), collapse = "+"), "|",categorical_var, ")")
   } else {
     ranef_bit <- NULL
   }
@@ -45,6 +39,8 @@ get_formula <- function(component_num,
   
   # Convert string into formula
   formula <- as.formula(form_obj)
+  
+  
   #generate the cglmm object 
   cc_obj <- 
     GLMMcosinor::cglmm(
@@ -59,108 +55,86 @@ get_formula <- function(component_num,
   return(cc_obj)
 }
 
-# 
-# get_UI_formula <- function(component_num, 
-#                            df,
-#                            family_arg, 
-#                            group, 
-#                            add_interaction,
-#                            outcome, 
-#                            time, 
-#                            period_values, 
-#                            file_name, 
-#                            ranef_components, 
-#                            categorical_var
-#                            ) {
-#   
-#   if(is.null(outcome)) {
-#     outcome <- "Y" 
-#   } else {
-#     outcome <- outcome
-#   }
-#   
-#   if(is.null(group)|| group == "None (default)") {
-#     group <- NULL 
-#     group_label_1 <- NULL 
-#     group_label_2 <- paste0('group = NULL')
-#   } else {
-#     #since 'group' appears at two different points in the formula, the 
-#     #formatting is slightly different: 
-#     group_label_1 <- paste0(group,"+") 
-#     group_label_2 <- paste0("group ='",group,"'")
-#   }
-#   
-#   
-#   
-#   group <- group 
-#   if(!is.null(add_interaction)) {
-#     if(!add_interaction){
-#       group_label_1 <- NULL 
-#     } 
-#   }
-#   
-#   if(is.null(component_num)) {
-#     component_num <- 1
-#     period_values <- 1
-#   } else {
-#     component_num <- component_num
-#   }
-#   
-#   if(length(period_values)>1) {
-#     period_values <- paste0("c(",paste(period_values, collapse = ", "),")")
-#   }
-#   
-#   if(is.null(time)) {
-#     time <- "time"
-#   } else  {
-#     time <- time
-#   }
-#   
-#   if(is.null(family_arg)) {
-#     family_arg <- "gaussian"
-#   } else {
-#     family_arg <- family_arg
-#   }
-#   
-#   k = 1
-#   random_effect_values <- NULL
-#   for (i in 1:component_num) {
-#     if (input[[paste0("amp_acro",i)]]) {
-#       random_effect_values[[k]] <- paste0("amp_acro",i)
-#       k = k+1
-#     } else {
-#       random_effect_values[[i]] <- NULL
-#     }
-#   }
-#   
-#   #store a vector of ccomponents with random effects selected
-#   ranef_components <- random_effect_values
-# 
-#   if(!is.null(ranef_components)) {
-#     ranef_bit <- paste0("+(",paste(unlist(ranef_components), collapse = "+"), "|",categorical_var, ")")
-#   } else {
-#     ranef_bit <- NULL
-#   }
-#   
-#   # Define the formula as a string to be evaluated 
-#   form_obj <- paste0(outcome," ~ ",group_label_1, " amp_acro(time_col = ",time, ",   n_components =", component_num ,",  ",group_label_2,", period =",period_values,")",ranef_bit)
-#   #formula <- as.formula(form_obj)
-#   
-#   
-#   
-#   if (!is.null(file_name)) {
-#     file_name <- sub(".csv$", "", file_name)
-#   } else {
-#     file_name <- "NULL"
-#   }
-#   
-#   if(!is.null(family_arg)) {
-#     family_name <-  family_arg
-#   } else {
-#     family_name <- "NULL"
-#   }
-#   
-#   form_obj <- paste0("cglmm(formula = ",form_obj, ", data = ",file_name, ", family = ", family_name, ")")
-#   # You can customize the formula creation based on your specific requirements
-#   return(form_obj)
-# }
+
+get_UI_formula <- function(component_num, 
+                           df,
+                           family_arg, 
+                           group, 
+                           add_interaction,
+                           outcome, 
+                           time, 
+                           period_values, 
+                           file_name
+                           ) {
+  
+  if(is.null(outcome)) {
+    outcome <- "Y" 
+  } else {
+    outcome <- outcome
+  }
+  
+  if(is.null(group)|| group == "None (default)") {
+    group <- NULL 
+    group_label_1 <- NULL 
+    group_label_2 <- paste0('group = NULL')
+  } else {
+    #since 'group' appears at two different points in the formula, the 
+    #formatting is slightly different: 
+    group_label_1 <- paste0(group,"+") 
+    group_label_2 <- paste0("group ='",group,"'")
+  }
+  
+  
+  
+  group <- group 
+  if(!is.null(add_interaction)) {
+    if(!add_interaction){
+      group_label_1 <- NULL 
+    } 
+  }
+  
+  if(is.null(component_num)) {
+    component_num <- 1
+    period_values <- 1
+  } else {
+    component_num <- component_num
+  }
+  
+  if(length(period_values)>1) {
+    period_values <- paste0("c(",paste(period_values, collapse = ", "),")")
+  }
+  
+  if(is.null(time)) {
+    time <- "time"
+  } else  {
+    time <- time
+  }
+  
+  if(is.null(family_arg)) {
+    family_arg <- "gaussian"
+  } else {
+    family_arg <- family_arg
+  }
+
+  # Define the formula as a string to be evaluated 
+  form_obj <- paste0(outcome," ~ ",group_label_1, " amp_acro(time_col = ",time, ",   n_components =", component_num ,",  ",group_label_2,", period =",period_values, ")")
+  #formula <- as.formula(form_obj)
+  
+  
+  
+  if (!is.null(file_name)) {
+    file_name <- sub(".csv$", "", file_name)
+  } else {
+    file_name <- "NULL"
+  }
+  
+  if(!is.null(family_arg)) {
+    family_name <-  family_arg
+  } else {
+    family_name <- "NULL"
+  }
+  
+  form_obj <- paste0("cglmm(formula = ",form_obj, ", data = ",file_name, ", family = ", family_name, ")")
+  # You can customize the formula creation based on your specific requirements
+  return(form_obj)
+}
