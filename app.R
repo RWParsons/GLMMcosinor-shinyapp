@@ -47,6 +47,7 @@ ui <- fluidPage(
           uiOutput("random_effect_intercept_inputs"),
           uiOutput("categorical_var_mixed_mod"),
           tags$br(),
+          uiOutput("ci_level"),
           uiOutput("ui.action")
         ),
 
@@ -64,7 +65,11 @@ ui <- fluidPage(
                                tags$hr(),
                                plotOutput("polar_plot"), 
                                # Action buttons in a single row
-                               uiOutput("polar_plot_selector")
+                               uiOutput("polar_plot_selector"), 
+                               uiOutput("polar_plot_toggles"),
+                               tags$hr(),
+                               tags$hr(),
+                               tags$hr()
                                ),
                       tabPanel("Summary",
                                tableOutput("table")
@@ -163,6 +168,8 @@ server <- function(input, output, session) {
     if(is.null(cols())){
       return(NULL)
     }
+    
+    #These arguments are from the family() function to be passed to glmmTMB 
     selectInput("family", "Select the data distribution:", c(
       'gaussian(link = "identity")',
       'binomial(link = "logit")',
@@ -242,9 +249,14 @@ server <- function(input, output, session) {
     checkboxInput("add_ranef", label= "Add random effect term", FALSE)
   })
   
+  output$ci_level <- renderUI({
+    if (is.null(input$file1)) {
+      return()
+    }
+    numericInput("ci_level", "confidence level:", value = 0.95, min = 0, max = 1)
+  })
+  
 
-  
-  
 
 
   options_list$options <- list()
@@ -480,7 +492,8 @@ server <- function(input, output, session) {
                                                group_name = group_name,
                                                components = components,
                                                cc_obj = cc_obj,
-                                               choose_comparison = choose_comparison)
+                                               choose_comparison = choose_comparison, 
+                                               ci_level = ci_level)
       comparison_table_group <- comparison_table[1]
       comparison_table_components <- comparison_table[2]
       
@@ -567,12 +580,13 @@ server <- function(input, output, session) {
                predict.ribbon = predict_arg, 
                ranef_plot = ranef_bit,
                xlims = c(xmin,xmax), 
-               pred.length.out = prediction_length_arg
+               pred.length.out = prediction_length_arg, 
+               ci_level = ci_level
       )
     })
     
     output$table <- renderTable({
-      sum_obj <- summary(cc_obj)
+      sum_obj <- summary(cc_obj, ci_level = ci_level)
       sum_obj[["transformed.table"]]
     }, rownames = TRUE, digits = 5)
     
@@ -586,42 +600,66 @@ server <- function(input, output, session) {
       }
       
       tagList(
-      fluidRow(
-        column(2, actionButton("prevButton", "Previous", icon("arrow-left")) 
-               ),
-        column(2, actionButton("nextButton", "Next", icon("arrow-right"))
-               )
+        actionButton("prevButton", "Previous", icon("arrow-left"), style = 'display: inline-block; margin-left: 15px;'),
+        actionButton("nextButton", "Next", icon("arrow-right"), style = 'display: inline-block;')
       )
-      )
+      
 
     })
     
     
     observeEvent(input$nextButton, {
       polar_plot_index(min(polar_plot_index() + 1, input$component_num))
-      output$polar_plot <- renderPlot({
-        polar_plot(cc_obj, component_index = polar_plot_index())
-      })
     })
     
     observeEvent(input$prevButton, {
       polar_plot_index(max(polar_plot_index() - 1, 1))
-      output$polar_plot <- renderPlot({
-        polar_plot(cc_obj, component_index = polar_plot_index())
-      })
     })
     
-    output$polar_plot <- renderPlot({
-      component_num <- input$component_num
-      if(component_num>1) {
-      polar_plot_object <- polar_plot(cc_obj, component_index = polar_plot_index())
-      } else {
-      polar_plot_object <- polar_plot(cc_obj, show_component_labels  = FALSE)
-      }
-      plotGenerated(TRUE)
-      return(polar_plot_object)
-      
+    observe({
+      polar_plot_index()
+      polar_plot_toggle()
+      polar_plot_overlay_parameter_info()
+      polar_plot_ellipse_opacity()
+      output$polar_plot <- renderPlot({
+        component_num <- input$component_num
+        if(is.null(input$polar_plot_view_toggle)){
+          view = "full"
+        } else {
+          view = input$polar_plot_view_toggle
+        }
+        if(component_num>1) {
+          show_component_labels  = TRUE
+        } else {
+          show_component_labels  = FALSE        
+        }
+        
+         if(is.null(input$overlay_parameter_info)){
+           polar_plot_overlay_parameter_info <- FALSE
+         } else {
+           polar_plot_overlay_parameter_info <-input$overlay_parameter_info
+         }
+        if(is.null(input$ellipse_opacity)){
+          ellipse_opacity <- 0.3
+        } else {
+          ellipse_opacity <- input$ellipse_opacity
+        }
+        
+        
+        polar_plot_object <- polar_plot(cc_obj, 
+                                        component_index = polar_plot_index(), 
+                                        show_component_labels = show_component_labels,
+                                        view = view, 
+                                        overlay_parameter_info = polar_plot_overlay_parameter_info, 
+                                        ci_level = ci_level, 
+                                        ellipse_opacity = ellipse_opacity)
+        
+        plotGenerated(TRUE)
+        return(polar_plot_object)
+
+      })
     })
+
     
     output$plot_toggles <- renderUI({
     
@@ -632,6 +670,49 @@ server <- function(input, output, session) {
                            "Fitted model resolution"))
       
     })
+    
+    
+    output$polar_plot_toggles <- renderUI({
+      if(!plotGenerated()){
+        return(NULL)
+      }
+      
+      outputs <- list(selectInput('polar_plot_view_toggle', "Select view:",
+                  c("full", "zoom","zoom_origin")),
+      checkboxInput('overlay_parameter_info', 'show parameter info', FALSE), 
+      sliderInput("ellipse_opacity", "Confidence Ellipse opacity:", min = 0, max = 1, value = 0.3)
+      )
+      outputs
+    })
+    
+    #might be able to wrap these under one reactive value? 
+    polar_plot_toggle <- reactiveVal(input$polar_plot_toggles)
+    polar_plot_overlay_parameter_info <- reactiveVal(input$overlay_parameter_info)
+    polar_plot_ellipse_opacity <- reactiveVal(input$ellipse_opacity)
+    ci_level <- reactiveVal({
+      if(is.null(input$ci_level)){
+        ci_level <- 0.95
+      } else {
+        ci_level <-  input$ci_level
+        if(is.na(ci_level)){
+          ci_level <-0.95 
+        }
+        
+        if(ci_level <= 0) {
+          ci_level <- 0
+        }
+        
+        if(ci_level >= 1) {
+          ci_level <- 0
+        }
+        
+      }
+      return(ci_level)
+    }
+    )
+    
+    
+    
     
     output$xbounds <- renderUI({
       if(!("Specify plot window " %in% input$plot_variables)){

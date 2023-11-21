@@ -3,7 +3,8 @@ get_comparison_table <- function(ref_level,
                                  group_name,
                                  components,
                                  cc_obj,
-                                 choose_comparison) {
+                                 choose_comparison, 
+                                 ci_level) {
   # create empty dataframes fort he two tables.
   comp_table <- data.frame() # dataframe for group comparison
   counter <- 0 # this will be used to track the number of rows in comp_table
@@ -27,7 +28,8 @@ get_comparison_table <- function(ref_level,
             param = param,
             comparison_A = ref_level,
             comparison_B = comparison_levels[j],
-            component_index = i
+            component_index = i, 
+            ci_level = ci_level
           )
 
           # If n_components = 1 in cc_obj, then the coefficients output will have no component suffix, so
@@ -61,7 +63,8 @@ get_comparison_table <- function(ref_level,
             param = param,
             comparison_A = ref_comp,
             comparison_B = comparison_components[j],
-            level_index = as.integer(levels[i])
+            level_index = as.integer(levels[i]), 
+            ci_level = ci_level
           )
           if (is.null(group_name)) {
             ref_full <- round(cc_obj$coefficients[paste0(param, ref_comp)], digits = 5)
