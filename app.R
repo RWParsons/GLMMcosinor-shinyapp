@@ -640,10 +640,12 @@ server <- function(input, output, session) {
           clockwise <- FALSE
           start = "right"
           radial_units = c("radians")
+          grid_angle_segments = 8
         } else {
           clockwise <- TRUE
           start = "top"
           radial_units = c("radians")
+          grid_angle_segments = 12
         }
         
         
@@ -656,7 +658,8 @@ server <- function(input, output, session) {
                                         ellipse_opacity = ellipse_opacity, 
                                         clockwise = clockwise, 
                                         start = start,
-                                        radial_units = radial_units)
+                                        radial_units = radial_units,
+                                        grid_angle_segments = grid_angle_segments)
         
         plotGenerated(TRUE)
         return(polar_plot_object)
@@ -674,6 +677,39 @@ server <- function(input, output, session) {
                            "Fitted model resolution"))
       
     })
+    
+    output$xbounds <- renderUI({
+      if(!("Specify plot window " %in% input$plot_variables)){
+        return(NULL)
+      } else{
+        xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+        xmax <- round(max(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+        xbound_list <- list(
+          numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
+          numericInput('xmax', label = "x-max", value = xmax, width = "250px") 
+        )
+        return(xbound_list)
+      }
+      
+    })
+    
+    output$prediction_length <- renderUI({
+      if(!("Fitted model resolution" %in% input$plot_variables)){
+        return(NULL)
+      } else{
+        default_pred.length.out <- get_pred_length_out(cc_obj)
+        output <- numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px")
+        return(output)
+      }    
+    })
+    output$plot_variables_ranef <- renderUI({
+      if (input$add_ranef) {
+        checkboxGroupInput('plot_variables_ranef', "", "Plot distinct random effects")
+      } else {
+        return(NULL)
+      }
+    })
+    
     
     
     output$polar_plot_toggles <- renderUI({
@@ -718,40 +754,6 @@ server <- function(input, output, session) {
     }
     )
     
-    
-    
-    
-    output$xbounds <- renderUI({
-      if(!("Specify plot window " %in% input$plot_variables)){
-        return(NULL)
-      } else{
-        xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
-        xmax <- round(max(cc_obj$newdata[cc_obj$time_name]),digits = 5)
-        xbound_list <- list(
-          numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
-          numericInput('xmax', label = "x-max", value = xmax, width = "250px") 
-        )
-        xbound_list 
-      }
-
-    })
-    
-    output$prediction_length <- renderUI({
-      if(!("Fitted model resolution" %in% input$plot_variables)){
-        return(NULL)
-      } else{
-        default_pred.length.out <- get_pred_length_out(cc_obj)
-        numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px")
-         
-      }    
-    })
-    output$plot_variables_ranef <- renderUI({
-      if (input$add_ranef) {
-      checkboxGroupInput('plot_variables_ranef', "", "Plot distinct random effects")
-      } else {
-        return(NULL)
-      }
-    })
     
     
 
