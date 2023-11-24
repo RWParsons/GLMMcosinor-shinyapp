@@ -56,7 +56,7 @@ ui <- fluidPage(
                                tags$hr(),
                                plotOutput("polar_plot"), 
                                # Action buttons in a single row
-                               uiOutput("polar_plot_selector"), 
+                               uiOutput("polar_plot_selector"),
                                uiOutput("polar_plot_toggles"),
                                tags$hr(),
                                tags$hr(),
@@ -687,6 +687,13 @@ server <- function(input, output, session) {
       }
     })
     
+    # output$show_polar_plot_options <- renderUI({
+    #   if(!plotGenerated()){
+    #     return(NULL)
+    #   }
+    #   checkboxInput('show_polar_plot_options', "Show polar plot options", FALSE)
+    # })
+    
     
     
     output$polar_plot_toggles <- renderUI({
@@ -700,7 +707,7 @@ server <- function(input, output, session) {
       numericInput("ellipse_opacity", "Confidence Ellipse opacity:", value = 0.3,min = 0, max = 1), 
       checkboxInput("clockwise","24 hour clock view:", FALSE), 
       numericInput("n_breaks", "Number of concentric circles:", value = 5, min = 0, max = NA, step = 1), 
-      numericInput("grid_angle_segments", "Number of radial lines", value = 8, min = 0, max = NA, step = 1), 
+      numericInput("grid_angle_segments", "Number of angle labels:", value = 8, min = 0, max = NA, step = 1), 
       selectInput("radial_units", "Select the angular units:", c("radians", "degrees", "period")), 
       selectInput("start", "Select the location of the starting angle:", c("right", "left", "top", "bottom")),
       sliderInput("text_size", "Select the text size:", value = 3, min = 0, max = 20),

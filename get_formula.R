@@ -33,14 +33,13 @@ get_formula <- function(component_num,
   } else {
     ranef_bit <- NULL
   }
-  browser()
   # Define the formula as a string to be evaluated 
   form_obj <- paste0(outcome,"~",group_label_1, "+", "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))",ranef_bit)
   
   # Convert string into formula
   formula <- as.formula(form_obj)
   
-  
+  browser()
   #generate the cglmm object 
   cc_obj <- 
     GLMMcosinor::cglmm(
