@@ -33,7 +33,7 @@ get_formula <- function(component_num,
   } else {
     ranef_bit <- NULL
   }
-
+  browser()
   # Define the formula as a string to be evaluated 
   form_obj <- paste0(outcome,"~",group_label_1, "+", "amp_acro(time_col = ",time, ", n_components =", component_num ,",",group_label_2,"period =c(",paste(period_values, collapse = ", "), "))",ranef_bit)
   
@@ -133,7 +133,6 @@ get_UI_formula <- function(component_num,
   } else {
     family_name <- "NULL"
   }
-  
   form_obj <- paste0("cglmm(formula = ",form_obj, ", data = ",file_name, ", family = ", family_name, ")")
   # You can customize the formula creation based on your specific requirements
   return(form_obj)

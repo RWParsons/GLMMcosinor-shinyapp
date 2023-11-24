@@ -1,5 +1,6 @@
 #Shiny app for the GLMMcosinor R package 
 #devtools::install_github("https://github.com/RWParsons/GLMMcosinor")
+#devtools::install_github("https://github.com/RWParsons/GLMMcosinor.git", ref = "dev")
 
 library(shiny)
 library(GLMMcosinor)
@@ -612,55 +613,31 @@ server <- function(input, output, session) {
       polar_plot_overlay_parameter_info()
       polar_plot_ellipse_opacity()
       polar_plot_clockwise()
+      polar_plot_n_breaks()
+      polar_plot_grid_angle_segments() 
+      polar_plot_radial_units()
+      polar_plot_start()
+      polar_plot_text_size()
+      polar_plot_text_opacity()
+      
+      
+      
       output$polar_plot <- renderPlot({
-        component_num <- input$component_num
-        if(is.null(input$polar_plot_view_toggle)){
-          view = "full"
-        } else {
-          view = input$polar_plot_view_toggle
-        }
-        if(component_num>1) {
-          show_component_labels  = TRUE
-        } else {
-          show_component_labels  = FALSE        
-        }
-        
-         if(is.null(input$overlay_parameter_info)){
-           polar_plot_overlay_parameter_info <- FALSE
-         } else {
-           polar_plot_overlay_parameter_info <-input$overlay_parameter_info
-         }
-        if(is.null(input$ellipse_opacity)){
-          ellipse_opacity <- 0.3
-        } else {
-          ellipse_opacity <- input$ellipse_opacity
-        }
-        
-        if(is.null(input$clockwise) || !input$clockwise){
-          clockwise <- FALSE
-          start = "right"
-          radial_units = c("radians")
-          grid_angle_segments = 8
-        } else {
-          clockwise <- TRUE
-          start = "top"
-          radial_units = c("radians")
-          grid_angle_segments = 12
-        }
-        
-        
-        polar_plot_object <- polar_plot(cc_obj, 
-                                        component_index = polar_plot_index(), 
-                                        show_component_labels = show_component_labels,
-                                        view = view, 
-                                        overlay_parameter_info = polar_plot_overlay_parameter_info, 
-                                        ci_level = ci_level, 
-                                        ellipse_opacity = ellipse_opacity, 
-                                        clockwise = clockwise, 
-                                        start = start,
-                                        radial_units = radial_units,
-                                        grid_angle_segments = grid_angle_segments)
-        
+      
+        polar_plot_object <- get_polar_plot_inputs(cc_obj = cc_obj,
+                                                   component_num = input$component_num,
+                                                   component_index  = polar_plot_index(),
+                                                   polar_plot_view_toggle = input$polar_plot_view_toggle,
+                                                   overlay_parameter_info = input$overlay_parameter_info,
+                                                   ellipse_opacity = input$ellipse_opacity,
+                                                   clockwise = input$clockwise,
+                                                   ci_level = input$ci_level,
+                                                   n_breaks = input$n_breaks,
+                                                   grid_angle_segments = input$grid_angle_segments, 
+                                                   radial_units = input$radial_units,
+                                                   start = input$start,
+                                                   text_size = input$text_size,
+                                                   text_opacity = input$text_opacity)
         plotGenerated(TRUE)
         return(polar_plot_object)
 
@@ -720,18 +697,33 @@ server <- function(input, output, session) {
       outputs <- list(selectInput('polar_plot_view_toggle', "Select view:",
                   c("full", "zoom","zoom_origin")),
       checkboxInput('overlay_parameter_info', 'show parameter info', FALSE), 
-      sliderInput("ellipse_opacity", "Confidence Ellipse opacity:", min = 0, max = 1, value = 0.3), 
-      checkboxInput("clockwise","24 hour clock view:", FALSE)
+      numericInput("ellipse_opacity", "Confidence Ellipse opacity:", value = 0.3,min = 0, max = 1), 
+      checkboxInput("clockwise","24 hour clock view:", FALSE), 
+      numericInput("n_breaks", "Number of concentric circles:", value = 5, min = 0, max = NA, step = 1), 
+      numericInput("grid_angle_segments", "Number of radial lines", value = 8, min = 0, max = NA, step = 1), 
+      selectInput("radial_units", "Select the angular units:", c("radians", "degrees", "period")), 
+      selectInput("start", "Select the location of the starting angle:", c("right", "left", "top", "bottom")),
+      sliderInput("text_size", "Select the text size:", value = 3, min = 0, max = 20),
+      sliderInput("text_opacity", "Select the text opacity:", value = 0.5, min = 0, max = 1)
       )
       outputs
     })
     
     #might be able to wrap these under one reactive value? 
+    
     polar_plot_toggle <- reactiveVal(input$polar_plot_toggles)
     polar_plot_overlay_parameter_info <- reactiveVal(input$overlay_parameter_info)
     polar_plot_ellipse_opacity <- reactiveVal(input$ellipse_opacity)
     polar_plot_clockwise <- reactiveVal(input$clockwise)
+    polar_plot_n_breaks <- reactiveVal(input$n_breaks)
+    polar_plot_grid_angle_segments <- reactiveVal(input$grid_angle_segments)
+    polar_plot_radial_units <- reactiveVal(input$radial_units)
+    polar_plot_start <- reactiveVal(input$start)
+    polar_plot_text_size <- reactiveVal(input$text_size)
+    polar_plot_text_opacity <- reactiveVal(input$text_opacity)
     
+    
+
     ci_level <- reactiveVal({
       if(is.null(input$ci_level)){
         ci_level <- 0.95
