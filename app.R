@@ -701,17 +701,18 @@ server <- function(input, output, session) {
         return(NULL)
       }
       
-      outputs <- list(selectInput('polar_plot_view_toggle', "Select view:",
+      outputs <- list(
+      selectInput('polar_plot_view_toggle', "Select view:",
                   c("full", "zoom","zoom_origin")),
+      selectInput("radial_units", "Select the angular units:", c("radians", "degrees", "period")),
       checkboxInput('overlay_parameter_info', 'show parameter info', FALSE), 
-      numericInput("ellipse_opacity", "Confidence Ellipse opacity:", value = 0.3,min = 0, max = 1), 
-      checkboxInput("clockwise","24 hour clock view:", FALSE), 
+      checkboxInput("clockwise","Clockwise:", FALSE), 
+      sliderInput("text_size", "Select the text size:", value = 3, min = 0, max = 20),
+      sliderInput("text_opacity", "Select the text opacity:", value = 0.5, min = 0, max = 1),
+      sliderInput("ellipse_opacity", "Confidence Ellipse opacity:", value = 0.3,min = 0, max = 1), 
       numericInput("n_breaks", "Number of concentric circles:", value = 5, min = 0, max = NA, step = 1), 
       numericInput("grid_angle_segments", "Number of angle labels:", value = 8, min = 0, max = NA, step = 1), 
-      selectInput("radial_units", "Select the angular units:", c("radians", "degrees", "period")), 
-      selectInput("start", "Select the location of the starting angle:", c("right", "left", "top", "bottom")),
-      sliderInput("text_size", "Select the text size:", value = 3, min = 0, max = 20),
-      sliderInput("text_opacity", "Select the text opacity:", value = 0.5, min = 0, max = 1)
+      selectInput("start", "Select the location of the starting angle:", c("right", "left", "top", "bottom"))
       )
       outputs
     })
