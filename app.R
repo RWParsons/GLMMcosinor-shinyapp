@@ -521,60 +521,70 @@ server <- function(input, output, session) {
       
     })
     
-
+    time_plotGenerated <- reactiveVal(FALSE)
     
+    
+    observe({    
     output$plot <- renderPlot({
+      
+      detect_superimpose.data()
+      detect_predict.ribbon()
+      detect_xmin()
+      detect_xmax()
+      detect_prediction_length()
+      
 
-      if (is.null(input$plot_variables) || length(input$plot_variables) == 0) {
-        superimpose_arg <- FALSE  # Default value when no toggles are selected
-        predict_arg <- FALSE
-      } else {
-        # Determine values based on selected toggles
-        superimpose_arg <- "Overlay original data" %in% input$plot_variables
-        predict_arg <- "Show prediction interval " %in% input$plot_variables
-      }
-
-      if(input$add_ranef) {
-        
-        if(is.null(input$plot_variables_ranef) || length(input$plot_variables_ranef) == 0){
-        ranef_bit <- NULL
-        } else {
-          if ("Plot distinct random effects" %in% input$plot_variables_ranef) {
-          ranef_bit <- categorical_var
-          } else {
-            ranef_bit <- NULL 
-          }
-        }
-      } else {
-        ranef_bit <- NULL
-      }
-      
-      #Set xlims based on user input
-      if((is.null(input$xmin) || is.null(input$xmax)) || !("Specify plot window " %in% input$plot_variables)){
-      xmin <- min(cc_obj$newdata[cc_obj$time_name])
-      xmax <- max(cc_obj$newdata[cc_obj$time_name])
-      } else {
-        xmin <- input$xmin
-        xmax <- input$xmax
-      }
-      
-      #Fitted model resolution
-      if((is.null(input$prediction_length)) || !("Fitted model resolution" %in% input$plot_variables)){
-        prediction_length_arg <- get_pred_length_out(cc_obj)
-      } else {
-        prediction_length_arg <- input$prediction_length
-      }
-      
-      
-      autoplot(cc_obj,
-               superimpose.data = superimpose_arg,
-               predict.ribbon = predict_arg, 
-               ranef_plot = ranef_bit,
-               xlims = c(xmin,xmax), 
-               pred.length.out = prediction_length_arg, 
-               ci_level = ci_level
+      time_plot_object <- get_time_plot_inputs(
+        superimpose.data = input$superimpose.data,
+        predict.ribbon = input$predict.ribbon,
+        xmin = input$xmin,
+        xmax = input$xmax,
+        prediction_length = input$prediction_length,
+        add_ranef = input$add_ranef,
+        categorical_var = input$mixed_mod_var,
+        ci_level = input$ci_level,
+        cc_obj = cc_obj
       )
+      time_plotGenerated(TRUE)
+      return(time_plot_object)
     })
+    
+    })
+    
+    output$plot_toggles <- renderUI({
+      if(!time_plotGenerated()) {
+        return(NULL)
+      }
+      xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+      xmax <- round(max(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+      default_pred.length.out <- get_pred_length_out(cc_obj)
+      plot_toggles_list <- list(
+        checkboxInput('superimpose.data', "Overlay original data", FALSE),
+        checkboxInput('predict.ribbon', "Show prediction interval", FALSE),
+        numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
+        numericInput('xmax', label = "x-max", value = xmax, width = "250px"),
+        numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px")
+        
+      )
+      plot_toggles_list
+      
+    })
+    
+    output$plot_variables_ranef <- renderUI({
+      if (input$add_ranef) {
+        checkboxGroupInput('plot_variables_ranef', "", "Plot distinct random effects")
+      } else {
+        return(NULL)
+      }
+    })
+    
+    
+    detect_superimpose.data <- reactiveVal(input$superimpose.data)
+    detect_predict.ribbon <- reactiveVal(input$predict.ribbon)
+    detect_xmin <- reactiveVal(input$xmin)
+    detect_xmax <- reactiveVal(input$xmax)
+    detect_prediction_length <- reactiveVal(input$prediction_length)
+    
     
     output$table <- renderTable({
       sum_obj <- summary(cc_obj, ci_level = ci_level)
@@ -583,10 +593,10 @@ server <- function(input, output, session) {
     
     # Update plot based on user interaction
     polar_plot_index <- reactiveVal(1)
-    plotGenerated <- reactiveVal(FALSE)
+    polar_plotGenerated <- reactiveVal(FALSE)
     
     output$polar_plot_selector <- renderUI({
-      if(!plotGenerated() || input$component_num == 1){
+      if(!polar_plotGenerated() || input$component_num == 1){
         return(NULL)
       }
       
@@ -638,66 +648,16 @@ server <- function(input, output, session) {
                                                    start = input$start,
                                                    text_size = input$text_size,
                                                    text_opacity = input$text_opacity)
-        plotGenerated(TRUE)
+        polar_plotGenerated(TRUE)
         return(polar_plot_object)
 
       })
     })
 
     
-    output$plot_toggles <- renderUI({
-    
-      checkboxGroupInput('plot_variables', 'Plot options:',
-                         c("Overlay original data",
-                           "Show prediction interval ", 
-                           "Specify plot window ", 
-                           "Fitted model resolution"))
-      
-    })
-    
-    output$xbounds <- renderUI({
-      if(!("Specify plot window " %in% input$plot_variables)){
-        return(NULL)
-      } else{
-        xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
-        xmax <- round(max(cc_obj$newdata[cc_obj$time_name]),digits = 5)
-        xbound_list <- list(
-          numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
-          numericInput('xmax', label = "x-max", value = xmax, width = "250px") 
-        )
-        return(xbound_list)
-      }
-      
-    })
-    
-    output$prediction_length <- renderUI({
-      if(!("Fitted model resolution" %in% input$plot_variables)){
-        return(NULL)
-      } else{
-        default_pred.length.out <- get_pred_length_out(cc_obj)
-        output <- numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px")
-        return(output)
-      }    
-    })
-    output$plot_variables_ranef <- renderUI({
-      if (input$add_ranef) {
-        checkboxGroupInput('plot_variables_ranef', "", "Plot distinct random effects")
-      } else {
-        return(NULL)
-      }
-    })
-    
-    # output$show_polar_plot_options <- renderUI({
-    #   if(!plotGenerated()){
-    #     return(NULL)
-    #   }
-    #   checkboxInput('show_polar_plot_options', "Show polar plot options", FALSE)
-    # })
-    
-    
     
     output$polar_plot_toggles <- renderUI({
-      if(!plotGenerated()){
+      if(!polar_plotGenerated()){
         return(NULL)
       }
       
