@@ -3,6 +3,7 @@
 #devtools::install_github("https://github.com/RWParsons/GLMMcosinor.git", ref = "dev")
 
 library(shiny)
+library(DT)
 library(GLMMcosinor)
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
 
@@ -54,7 +55,7 @@ ui <- fluidPage(
                                uiOutput("prediction_length"),
                                uiOutput("plot_variables_ranef"), 
                                tags$hr(),
-                               plotOutput("polar_plot"), 
+                               plotOutput("polar_plot"),
                                # Action buttons in a single row
                                uiOutput("polar_plot_selector"),
                                uiOutput("polar_plot_toggles"),
@@ -75,7 +76,8 @@ ui <- fluidPage(
                                uiOutput("comparison_title2"),
                                uiOutput("comparison_text2")),
                       tabPanel("Data",
-                               uiOutput("dataframe"))
+                               uiOutput("dataframe_summary"),
+                               DTOutput("dataframe"))
                       )
 
 
@@ -97,17 +99,33 @@ server <- function(input, output, session) {
     read.csv(infile$datapath)
   })
   
-  
-  
-  output$dataframe <- renderTable({
+  # show some basic summary statistics for each column within the dataset
+  output$dataframe_summary <- renderTable({
     if(is.null(input$file1)) {
       return()
     }
     df <- filedata()
-    df
-  })
+    data_summary <- data.frame()
+    for (i in 1:length(names(df))){
+      data_summary[1:6,i] <- (summary(df[,i]))
+      colnames(data_summary)[i] <- names(df)[i]
+    }
+    rownames(data_summary) <- c("Min.","1st Qu.", "Median", "Mean","3rd Qu.", "Max.")
+    return(data_summary)
+  }, rownames = TRUE)
+  
+
+  # show the dataset 
+  output$dataframe <- renderDT({
+    if(is.null(input$file1)) {
+      return()
+    }
+    df <- filedata()
+    return(df)
+  }, options = list(pageLength = 15))
   
   
+  # a reactive function that gets the column names from the dataset
   cols <- reactive({
     df <- filedata()
     if(is.null(df)) {
@@ -119,6 +137,7 @@ server <- function(input, output, session) {
     
   })
   
+  # gets the names of the coefficients from the cglmm object 
   coef_names <- function(cc_obj,param, type){
 
     if(type == "group") {
@@ -133,6 +152,7 @@ server <- function(input, output, session) {
   }
   
   
+  # a checkbox that determines whether the group will be included as an interaction term
     output$add_interaction_selector <- renderUI({
       if(is.null(input$group) || input$group == "None (default)") {
         return(NULL)
@@ -140,6 +160,7 @@ server <- function(input, output, session) {
     checkboxInput("add_interaction","Add as interaction Term", value = TRUE)
   })
 
+  # choose the time variable
   output$time_selector <- renderUI({
     if(is.null(cols())) {
       return(NULL)
@@ -147,6 +168,7 @@ server <- function(input, output, session) {
     selectInput("time", "Select the TIME (INDEPENDENT) variable from:", cols())
   })
 
+  # choose the grouping variable. 
   output$group_selector <- renderUI({
     if(is.null(cols())) {
       return(NULL)
@@ -154,7 +176,7 @@ server <- function(input, output, session) {
     selectInput("group", "Select the GROUPING variable from:", c("None (default)",cols()))
   })
   
-  
+  # choose the family distribution from family(). TODO: add all families supported by glmmTMB
   output$family_selector <- renderUI({
     if(is.null(cols())){
       return(NULL)
@@ -173,6 +195,7 @@ server <- function(input, output, session) {
     ))
   })
   
+  # select the number of components in the model 
   output$component_selector <- renderUI({
     if(is.null(cols())) {
       return(NULL)
@@ -183,6 +206,7 @@ server <- function(input, output, session) {
                  step = 1)
   })
   
+  # select the response variable 
   output$outcome_selector <- renderUI({
     if(is.null(cols())) {
       return(NULL)
@@ -190,11 +214,13 @@ server <- function(input, output, session) {
     selectInput("outcome", "Select the OUTCOME (DEPENDENT) variable from:", cols())
   })
 
+  # define some reactive values to be accessed throughout the app 
   random_effect_values <- reactiveValues(values = NULL)
-
-
   period_values <- reactiveValues(values = NULL)
   ranef_values <- reactiveValues(values = NULL)
+  
+  # based on the number of components specified, get the user to input a period value 
+  # for each of the components. This depends on 'component_num', hence the observe() function 
     observe({
       
       if(is.null(input$component_num) || is.na(input$component_num) || input$component_num == 0){
@@ -203,36 +229,34 @@ server <- function(input, output, session) {
       
       component_num <- input$component_num
       group <- input$group 
-   
+      
+   # get the periods for each component
     period_inputs <- lapply(seq_len(component_num), function(i) {
       numericInput(paste0("period_input_", i), label = paste0("Period for Component ", i,":"), value = 1, min = 1, step = 1) 
     })
+    
+    # based on the number of components, allow the user to select which components to add as 
+    # random effects 
     random_effect_inputs <- lapply(seq_len(component_num),function(i){
       checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
     })
     
+    # if there is a group, allow the user to specify as a random effect term 
     random_effect_intercept_inputs <- checkboxInput("group_ranef",label = paste("Add group:",paste(group), "as random effect"))
 
   
+    # ask the user to input periods for each component
     output$period_inputs <- renderUI({
       if(is.null(cols())) {
         return(NULL)
       }
-      
       period_inputs
     })
-  
   })
 
     
-  output$ui.action <- renderUI({
-    if (is.null(input$file1)) {
-      return()
-    }
-    actionButton("action", "Run")
-  })
   
-  
+  # toggle to enable mixed model specification 
   output$add_ranef <- renderUI({
     if (is.null(input$file1)) {
       return()
@@ -240,6 +264,7 @@ server <- function(input, output, session) {
     checkboxInput("add_ranef", label= "Add random effect term", FALSE)
   })
   
+  # set the confidence level. This will be used across the entire app 
   output$ci_level <- renderUI({
     if (is.null(input$file1)) {
       return()
@@ -247,28 +272,40 @@ server <- function(input, output, session) {
     numericInput("ci_level", "confidence level:", value = 0.95, min = 0, max = 1)
   })
   
+  # display button to run the cglmm() analysis 
+  output$ui.action <- renderUI({
+    if (is.null(input$file1)) {
+      return()
+    }
+    actionButton("action", "Run")
+  })
 
 
-
+  # get the mixed model specification details 
   options_list$options <- list()
-
-  #Work in progress to try to make ranef spec more modular
   observeEvent(input$add_ranef, {
     if(is.null(input$component_num)) {
       return(NULL)
     }
     
-    component_num <- input$component_num
     
-
-    #create the initial set of options 
+    #get the component number
+    component_num <- input$component_num
+    # get the group argument 
+    if(input$group == "None (default)") {
+      group = NULL
+    } else {
+      group = input$group 
+    }
+    
+    # create the initial set of options 
     current_options <- options_list$options
-
-
+    # this function takes the column names, number of components, and groups from the 
+    # cglmm model and returns a list of potential variables that could be assigned 
+    # random effects in the mixed model. 
     get_new_options <- function (cols, component_num,group) {
       new_options <- list(
-        
-       selectInput(paste0("mixed_mod_var"), paste("Select a random variable", ":"), cols())
+        selectInput(paste0("mixed_mod_var"), paste("Select a random variable", ":"), cols())
         ,
         lapply(1:(component_num), function(i) {
           checkboxInput(paste0("amp_acro", i), label = paste("Add component", i, "as random effect"))
@@ -281,20 +318,11 @@ server <- function(input, output, session) {
       
       return(new_options)
     }
-    # Create a new set of random effect and categorical variable options together
     
-    if(input$group == "None (default)") {
-      group = NULL
-    } else {
-      group = input$group 
-    }
     new_options <- get_new_options(cols(), component_num, group)
-    
-
-    #names(new_options) <- rep(paste0("ranef_part",(counter())), length(new_options))
     options_list$options[["ranef"]] <- new_options
 
-
+    # present the mixed model spec options to the user 
     if(input$add_ranef) {
     output$random_effect_inputs <- renderUI({
       tagList(
@@ -309,14 +337,11 @@ server <- function(input, output, session) {
       output$random_effect_inputs <- renderUI({
         return()
       })
-      
     }
-    
-    
   })
 
   
-  
+  # analyse the data using cglmm() once the user selects 'run'
   observeEvent(input$action, {
     isolate({
       df <- filedata()
@@ -331,16 +356,15 @@ server <- function(input, output, session) {
         group <- input$group 
       }
 
+      # get the component number 
       component_num <- input$component_num
       
-      
-      
-      #Get the period values for each component
+      # get the period values for each component
       period_values <- sapply(1:component_num, function(i) {
         input[[paste0("period_input_", i)]]
       })
 
-
+      # get the components which have random effects
       if(input$add_ranef){
       k = 1
       random_effect_values <- NULL
@@ -354,13 +378,12 @@ server <- function(input, output, session) {
       }} else {
         random_effect_values <- NULL
       }
-      
-
-      
-      #store a vector of ccomponents with random effects selected
-      
+  
+      #store a vector of components with random effects selected
       ranef_components <- random_effect_values
       
+      # get the categorical variable from the mixed model and the intercept (if applicable)
+      # that has a random variable designation 
       ranef_int <- NULL
       if(input$add_ranef){
       categorical_var <- input$mixed_mod_var
@@ -372,6 +395,7 @@ server <- function(input, output, session) {
       ranef_int <- NULL
       }
       
+    # get the cglmm() object   
     cc_obj <- get_formula(
       component_num = component_num, 
       df = df,
@@ -385,10 +409,9 @@ server <- function(input, output, session) {
       categorical_var = categorical_var, 
       ranef_int = ranef_int
       )
-    
-
     })
     
+    #store the cc_obj as output
     output$contents <- renderText({
       if (inherits(cc_obj, "error")) {
         return(cc_obj$message)
@@ -396,38 +419,56 @@ server <- function(input, output, session) {
      cc_obj
     })
     
+    # generate and present the summary statistics of the cglmm() object
+    # this includes the parameter estimates 
+    output$table <- renderTable({
+      sum_obj <- summary(cc_obj, ci_level = ci_level)
+      sum_obj[["transformed.table"]]
+    }, rownames = TRUE, digits = 5)
+    
+    # present options for the comparison table (table comparing parameter estimates) 
     output$choose_comparison <- renderUI({
       if (inherits(cc_obj, "error")) {
         return(cc_obj$message)
       }
       
+      # comp_choices will be the comparison type (group, component, or both)
       comp_choices <- NULL
       
-      #get the number of levels within the selected group 
+      # get the number of levels within the selected group 
       group_levels <- cc_obj$group_stats[[input$group]]
       
-      #get the number of components 
+      # get the number of components 
       component_number <- input$component_num
       
+      # if there are more than one group_levels, then a group comparison is possible: 
       if(length(group_levels)>1) {
         comp_choices <- append(comp_choices, "group")
       }
+      
+      # if there is more than one components, then a component comparison is possible: 
       if(component_number > 1) {
         comp_choices <- append(comp_choices, "component")
       }
       
+      # if there are multiple group levels AND components, then both comparisons are possible:
       if (length(group_levels)>1 && component_number > 1){
         comp_choices <- append(comp_choices, "both group and component")
       }
       
+      # if none of the conditions above are met, then no comparison can be made
       if(is.null(comp_choices)){
         return(NULL)
       }
       
+      # choose the type of comparison (group, component, or both)
       selectInput("choose_comparison", label = "Choose the type of comparison:", 
                   choices = comp_choices)
     })
 
+    # configure the comparison by choosing the reference level (within a group), and 
+    # the reference component where applicable. These reference selections will be 
+    # compared against all other groups/component estimates for each parameter 
     output$config_comparison <- renderUI({
       if (inherits(cc_obj, "error")) {
         return(cc_obj$message)
@@ -437,7 +478,6 @@ server <- function(input, output, session) {
         return(NULL)
       }
 
-      # selectInput("config_comparison", label= "Compare amplitudes", choices = coef_names(cc_obj))
       if(input$choose_comparison == "group") {
         input_selector <- list(selectInput("config_comparison1", 
                                            label = "choose a reference group:", 
@@ -461,23 +501,21 @@ server <- function(input, output, session) {
                                            choices = coef_names(cc_obj, "amp", "component")),
                                actionButton("run_comparison","compare"))        
       }
-      
-     
-      
-      
-       
       input_selector
     })
     
+    # generate the comparison table 
     observeEvent(input$run_comparison,{
-      ref_level <- input$config_comparison1
-      ref_comp <- input$config_comparison2
+      ref_level <- input$config_comparison1 #reference level 
+      ref_comp <- input$config_comparison2 #reference component 
       group_name <- input$group
       if(group_name == "None (default)"){
         group_name <- NULL
       }
       components <- input$component_num
       choose_comparison <- input$choose_comparison
+      
+      #pass arguments to function that returns the comparison table(s)
       comparison_table <- get_comparison_table(ref_level = ref_level,
                                                ref_comp = ref_comp,
                                                group_name = group_name,
@@ -485,10 +523,10 @@ server <- function(input, output, session) {
                                                cc_obj = cc_obj,
                                                choose_comparison = choose_comparison, 
                                                ci_level = ci_level)
-      comparison_table_group <- comparison_table[1]
-      comparison_table_components <- comparison_table[2]
+      comparison_table_group <- comparison_table[1] #group comparison table
+      comparison_table_components <- comparison_table[2] #component comparison table
       
-      
+      # format title and present the group comparison table
       if(input$choose_comparison %in% c("group", "both group and component")) {
         output$comparison_title <- renderText({
           # Wrap the text in HTML tags for bold formatting
@@ -504,6 +542,7 @@ server <- function(input, output, session) {
         output$comparison_text <- NULL
       }
       
+      # format title and present the component comparison table
       if(components > 1 && input$choose_comparison %in% c("component", "both group and component")) {
       output$comparison_title2 <- renderText({
         # Wrap the text in HTML tags for bold formatting
@@ -518,29 +557,34 @@ server <- function(input, output, session) {
         output$comparison_title2 <- NULL
         output$comparison_text2 <- NULL
       }
-      
     })
     
+    # plots
+    # create a reactive value that is TRUE if a time-plot has been generated 
     time_plotGenerated <- reactiveVal(FALSE)
     
     
-    observe({    
+    observe({
+    #generate the time plot
     output$plot <- renderPlot({
       
-      detect_superimpose.data()
+      # these correspond to reactive inputs. If any of them change, the plots will 
+      # be generated again to reflect updated inputs
+      detect_superimpose.data() 
       detect_predict.ribbon()
       detect_xmin()
       detect_xmax()
       detect_prediction_length()
+      detect_add_ranef_plot()
       
-
+      #get the time plot
       time_plot_object <- get_time_plot_inputs(
         superimpose.data = input$superimpose.data,
         predict.ribbon = input$predict.ribbon,
         xmin = input$xmin,
         xmax = input$xmax,
         prediction_length = input$prediction_length,
-        add_ranef = input$add_ranef,
+        add_ranef = input$add_ranef_plot,
         categorical_var = input$mixed_mod_var,
         ci_level = input$ci_level,
         cc_obj = cc_obj
@@ -551,13 +595,18 @@ server <- function(input, output, session) {
     
     })
     
+    # present the options for the time plot
     output$plot_toggles <- renderUI({
       if(!time_plotGenerated()) {
         return(NULL)
       }
+      # get the default domain of the time plot
       xmin <- round(min(cc_obj$newdata[cc_obj$time_name]),digits = 5)
       xmax <- round(max(cc_obj$newdata[cc_obj$time_name]),digits = 5)
+      # get the default predicted length out (ie, number of datapoints in the fitted model)
       default_pred.length.out <- get_pred_length_out(cc_obj)
+      
+      # plot options: 
       plot_toggles_list <- list(
         checkboxInput('superimpose.data', "Overlay original data", FALSE),
         checkboxInput('predict.ribbon', "Show prediction interval", FALSE),
@@ -567,47 +616,40 @@ server <- function(input, output, session) {
         
       )
       plot_toggles_list
-      
     })
     
+    # if there is a mixed model, allow user to plot each distinct random effect 
     output$plot_variables_ranef <- renderUI({
       if (input$add_ranef) {
-        checkboxGroupInput('plot_variables_ranef', "", "Plot distinct random effects")
+        checkboxGroupInput('add_ranef_plot', "", "Plot distinct random effects")
       } else {
         return(NULL)
       }
     })
     
-    
+    # reactive values that update when the time plot inputs update
     detect_superimpose.data <- reactiveVal(input$superimpose.data)
     detect_predict.ribbon <- reactiveVal(input$predict.ribbon)
     detect_xmin <- reactiveVal(input$xmin)
     detect_xmax <- reactiveVal(input$xmax)
     detect_prediction_length <- reactiveVal(input$prediction_length)
+    detect_add_ranef_plot <- reactiveVal(input$add_ranef_plot)
     
-    
-    output$table <- renderTable({
-      sum_obj <- summary(cc_obj, ci_level = ci_level)
-      sum_obj[["transformed.table"]]
-    }, rownames = TRUE, digits = 5)
-    
+    # polar plot 
     # Update plot based on user interaction
     polar_plot_index <- reactiveVal(1)
     polar_plotGenerated <- reactiveVal(FALSE)
     
+    #if more than one polar plot is generated, allow user to cycle between them 
     output$polar_plot_selector <- renderUI({
       if(!polar_plotGenerated() || input$component_num == 1){
         return(NULL)
       }
-      
       tagList(
         actionButton("prevButton", "Previous", icon("arrow-left"), style = 'display: inline-block; margin-left: 15px;'),
         actionButton("nextButton", "Next", icon("arrow-right"), style = 'display: inline-block;')
       )
-      
-
     })
-    
     
     observeEvent(input$nextButton, {
       polar_plot_index(min(polar_plot_index() + 1, input$component_num))
@@ -618,6 +660,8 @@ server <- function(input, output, session) {
     })
     
     observe({
+      # these correspond to reactive inputs. If any of them change, the plots will 
+      # be generated again to reflect updated inputs     
       polar_plot_index()
       polar_plot_toggle()
       polar_plot_overlay_parameter_info()
@@ -631,9 +675,8 @@ server <- function(input, output, session) {
       polar_plot_text_opacity()
       
       
-      
       output$polar_plot <- renderPlot({
-      
+      #generate the polar plot(s)
         polar_plot_object <- get_polar_plot_inputs(cc_obj = cc_obj,
                                                    component_num = input$component_num,
                                                    component_index  = polar_plot_index(),
@@ -655,7 +698,7 @@ server <- function(input, output, session) {
     })
 
     
-    
+    # present the polar plot options 
     output$polar_plot_toggles <- renderUI({
       if(!polar_plotGenerated()){
         return(NULL)
@@ -677,8 +720,7 @@ server <- function(input, output, session) {
       outputs
     })
     
-    #might be able to wrap these under one reactive value? 
-    
+    #polar plot reactive inputs. These update if the polar plot inputs update 
     polar_plot_toggle <- reactiveVal(input$polar_plot_toggles)
     polar_plot_overlay_parameter_info <- reactiveVal(input$overlay_parameter_info)
     polar_plot_ellipse_opacity <- reactiveVal(input$ellipse_opacity)
@@ -690,8 +732,9 @@ server <- function(input, output, session) {
     polar_plot_text_size <- reactiveVal(input$text_size)
     polar_plot_text_opacity <- reactiveVal(input$text_opacity)
     
-    
-
+    # store the confidence interval as a reactive value that will be used across the app 
+    # to prevent errors, there are various safeguards to ensure that there is always 
+    # a 'valid' confidence interval 
     ci_level <- reactiveVal({
       if(is.null(input$ci_level)){
         ci_level <- 0.95
@@ -700,23 +743,16 @@ server <- function(input, output, session) {
         if(is.na(ci_level)){
           ci_level <-0.95 
         }
-        
         if(ci_level <= 0) {
           ci_level <- 0
         }
-        
         if(ci_level >= 1) {
           ci_level <- 0
         }
-        
       }
       return(ci_level)
     }
     )
-    
-    
-    
-
   })
   
 }
