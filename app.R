@@ -608,7 +608,7 @@ server <- function(input, output, session) {
       
       # plot options: 
       plot_toggles_list <- list(
-        checkboxInput('superimpose.data', "Overlay original data", FALSE),
+        checkboxInput('superimpose.data', "Overlay data", FALSE),
         checkboxInput('predict.ribbon', "Show prediction interval", FALSE),
         numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
         numericInput('xmax', label = "x-max", value = xmax, width = "250px"),
@@ -708,7 +708,7 @@ server <- function(input, output, session) {
       selectInput('polar_plot_view_toggle', "Select view:",
                   c("full", "zoom","zoom_origin")),
       selectInput("radial_units", "Select the angular units:", c("radians", "degrees", "period")),
-      checkboxInput('overlay_parameter_info', 'show parameter info', FALSE), 
+      checkboxInput('overlay_parameter_info', 'Overlay parameter information', FALSE), 
       checkboxInput("clockwise","Clockwise:", FALSE), 
       sliderInput("text_size", "Select the text size:", value = 3, min = 0, max = 20),
       sliderInput("text_opacity", "Select the text opacity:", value = 0.5, min = 0, max = 1),
