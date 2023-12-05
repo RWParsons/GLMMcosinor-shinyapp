@@ -3,6 +3,7 @@
 #devtools::install_github("https://github.com/RWParsons/GLMMcosinor.git", ref = "dev")
 
 library(shiny)
+library(shinyjs)
 library(DT)
 library(GLMMcosinor)
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
@@ -49,13 +50,17 @@ ui <- fluidPage(
           tabsetPanel(type = "tabs", 
                       tabPanel("Plots", 
                                plotOutput("plot"),
+                               uiOutput("saveBtn"),
                                tags$hr(),
+                               # downloadButton("saveBtn", "Save Image"),
                                uiOutput("plot_toggles"),
                                uiOutput("xbounds"),
                                uiOutput("prediction_length"),
                                uiOutput("plot_variables_ranef"), 
                                tags$hr(),
                                plotOutput("polar_plot"),
+                               uiOutput("saveBtn_polar_plot"),
+                               tags$hr(),
                                # Action buttons in a single row
                                uiOutput("polar_plot_selector"),
                                uiOutput("polar_plot_toggles"),
@@ -562,8 +567,7 @@ server <- function(input, output, session) {
     # plots
     # create a reactive value that is TRUE if a time-plot has been generated 
     time_plotGenerated <- reactiveVal(FALSE)
-    
-    
+
     observe({
     #generate the time plot
     output$plot <- renderPlot({
@@ -593,7 +597,46 @@ server <- function(input, output, session) {
       return(time_plot_object)
     })
     
+
     })
+    
+   ## 
+    output$saveBtn <- renderUI({##
+    if(!time_plotGenerated()) {
+      return(NULL)
+    } else {
+    downloadButton("saveBtn", "Save Image")
+    downloadHandler(
+      filename = function(){
+        paste("time_plot.png")
+      },
+      content = function(file){
+        plot_obj <- get_time_plot_inputs(
+          superimpose.data = input$superimpose.data,
+          predict.ribbon = input$predict.ribbon,
+          xmin = input$xmin,
+          xmax = input$xmax,
+          prediction_length = input$prediction_length,
+          add_ranef = input$add_ranef_plot,
+          categorical_var = input$mixed_mod_var,
+          ci_level = input$ci_level,
+          cc_obj = cc_obj
+        )
+        
+        # Get the actual width and height of the rendered plot
+        width_px <- session$clientData$output_plot_width
+        height_px <- session$clientData$output_plot_height
+
+        ggplot2::ggsave(file, 
+                        plot = plot_obj, 
+        width = width_px*5,
+        height = height_px*5, 
+        units = "px")
+      }
+    )
+    }
+    })##
+    ##
     
     # present the options for the time plot
     output$plot_toggles <- renderUI({
@@ -696,6 +739,48 @@ server <- function(input, output, session) {
 
       })
     })
+    
+    # save the polar plot 
+    output$saveBtn_polar_plot <- renderUI({##
+      if(!polar_plotGenerated()) {
+        return(NULL)
+      } else {
+        downloadButton("saveBtn_polar_plot", "Save Image")
+        downloadHandler(
+          filename = function(){
+            paste("polar_plot.png")
+          },
+          content = function(file){
+            plot_obj <- get_polar_plot_inputs(cc_obj = cc_obj,
+                                  component_num = input$component_num,
+                                  component_index  = polar_plot_index(),
+                                  polar_plot_view_toggle = input$polar_plot_view_toggle,
+                                  overlay_parameter_info = input$overlay_parameter_info,
+                                  ellipse_opacity = input$ellipse_opacity,
+                                  clockwise = input$clockwise,
+                                  ci_level = input$ci_level,
+                                  n_breaks = input$n_breaks,
+                                  grid_angle_segments = input$grid_angle_segments, 
+                                  radial_units = input$radial_units,
+                                  start = input$start,
+                                  text_size = input$text_size,
+                                  text_opacity = input$text_opacity)
+            
+            # Get the actual width and height of the rendered plot
+            width_px <- session$clientData$output_polar_plot_width
+            height_px <- session$clientData$output_polar_plot_height
+            
+            ggplot2::ggsave(file, 
+                            plot = plot_obj, 
+                            width = width_px*5,
+                            height = height_px*5, 
+                            units = "px")
+          }
+        )
+      }
+    })##
+    ##
+    
 
     
     # present the polar plot options 
@@ -754,6 +839,9 @@ server <- function(input, output, session) {
     }
     )
   })
+  
+  # save images 
+
   
 }
 
