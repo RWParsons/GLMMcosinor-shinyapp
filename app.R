@@ -6,6 +6,7 @@ library(shiny)
 library(shinyjs)
 library(DT)
 library(GLMMcosinor)
+library(shinythemes)
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
 
 
@@ -13,7 +14,9 @@ ui <- fluidPage(
 
     # Application title
     titlePanel("GLMMcosinor"),
-
+    
+    # Application theme
+    theme = shinytheme("cerulean"),
     
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
@@ -48,7 +51,7 @@ ui <- fluidPage(
           
           #Output as tabs
           tabsetPanel(type = "tabs", 
-                      tabPanel("Plots", 
+                      tabPanel("Time series plot", 
                                plotOutput("plot"),
                                uiOutput("saveBtn"),
                                tags$hr(),
@@ -57,7 +60,9 @@ ui <- fluidPage(
                                uiOutput("xbounds"),
                                uiOutput("prediction_length"),
                                uiOutput("plot_variables_ranef"), 
-                               tags$hr(),
+                               tags$hr()
+                               ),
+                      tabPanel("Polar plot",
                                plotOutput("polar_plot"),
                                uiOutput("saveBtn_polar_plot"),
                                tags$hr(),
@@ -69,7 +74,8 @@ ui <- fluidPage(
                                tags$hr()
                                ),
                       tabPanel("Summary",
-                               tableOutput("table")
+                               tableOutput("table"),
+                               uiOutput("saveBtn_data")
                                ),
                       tabPanel("Comparison",
                                uiOutput("choose_comparison"),
@@ -77,9 +83,11 @@ ui <- fluidPage(
                                tags$hr(),
                                uiOutput("comparison_title"),
                                uiOutput("comparison_text"),
+                               uiOutput("saveBtn_comparison_table_group"),
                                tags$hr(),
                                uiOutput("comparison_title2"),
-                               uiOutput("comparison_text2")),
+                               uiOutput("comparison_text2"),
+                               uiOutput("saveBtn_comparison_table_component")),
                       tabPanel("Data",
                                uiOutput("dataframe_summary"),
                                DTOutput("dataframe"))
@@ -424,6 +432,7 @@ server <- function(input, output, session) {
      cc_obj
     })
     
+    #summary tab
     # generate and present the summary statistics of the cglmm() object
     # this includes the parameter estimates 
     output$table <- renderTable({
@@ -431,6 +440,25 @@ server <- function(input, output, session) {
       sum_obj[["transformed.table"]]
     }, rownames = TRUE, digits = 5)
     
+    output$saveBtn_data <- renderUI({
+      if(is.null(cc_obj)){
+        return(NULL)
+      } 
+      downloadButton("saveBtn_data", "Save table")
+      downloadHandler(
+        filename = function() {
+          paste(input$file1, "_summary.csv", sep = "")
+        },
+        content = function(file) {
+          sum_obj <- summary(cc_obj, ci_level = ci_level) 
+          write.csv(sum_obj[["transformed.table"]], file, row.names = TRUE)
+        }
+      )
+    })
+      
+    
+    
+    #comparison tab
     # present options for the comparison table (table comparing parameter estimates) 
     output$choose_comparison <- renderUI({
       if (inherits(cc_obj, "error")) {
@@ -542,9 +570,41 @@ server <- function(input, output, session) {
       output$comparison_text <- renderTable({
         comparison_table_group
       }, digits = 5)
+      
+      
+      #download button for comparison table
+      
+      output$saveBtn_comparison_table_group <- renderUI({
+
+        downloadButton("saveBtn_comparison_table_group", "Save table")
+        downloadHandler(
+          filename = function() {
+            paste(input$file1, "_group_comparison.csv", sep = "")
+          },
+          content = function(file) {
+            
+            group_name <- input$group
+            if(group_name == "None (default)"){
+              group_name <- NULL
+            }
+            comparison_table_group <- get_comparison_table(ref_level = input$config_comparison1,
+                                                           ref_comp = input$config_comparison2,
+                                                           group_name = group_name,
+                                                           components = input$component_num,
+                                                           cc_obj = cc_obj,
+                                                           choose_comparison = input$choose_comparison, 
+                                                           ci_level = ci_level)
+            write.csv(comparison_table_group[1], file, row.names = TRUE)
+          }
+        )
+      })
+      
+      
+      
       } else {
         output$comparison_title <- NULL
         output$comparison_text <- NULL
+        output$saveBtn_comparison_table_group <- NULL
       }
       
       # format title and present the component comparison table
@@ -558,20 +618,51 @@ server <- function(input, output, session) {
       output$comparison_text2 <- renderTable({
         comparison_table_components
       }, digits = 5)
+      
+      
+      #download button for comparison table
+      
+      output$saveBtn_comparison_table_component <- renderUI({
+        
+        downloadButton("saveBtn_comparison_table_component", "Save table")
+        downloadHandler(
+          filename = function() {
+            paste(input$file1, "_component_comparison.csv", sep = "")
+          },
+          content = function(file) {
+            group_name <- input$group
+            if(group_name == "None (default)"){
+              group_name <- NULL
+            }
+            comparison_table_component <- get_comparison_table(ref_level = input$config_comparison1,
+                                                               ref_comp = input$config_comparison2,
+                                                               group_name = group_name,
+                                                               components = input$component_num,
+                                                               cc_obj = cc_obj,
+                                                               choose_comparison = input$choose_comparison, 
+                                                               ci_level = ci_level)
+            write.csv(comparison_table_component[2], file, row.names = TRUE)
+          }
+        )
+      })
+      
       } else {
         output$comparison_title2 <- NULL
         output$comparison_text2 <- NULL
+        output$saveBtn_comparison_table_component <- NULL
       }
     })
+    
     
     # plots
     # create a reactive value that is TRUE if a time-plot has been generated 
     time_plotGenerated <- reactiveVal(FALSE)
 
     observe({
+    #withProgress(message = 'Making plot', value = 0, {
     #generate the time plot
     output$plot <- renderPlot({
-      
+      withProgress(message = 'Making plot', value = 0, {  
       # these correspond to reactive inputs. If any of them change, the plots will 
       # be generated again to reflect updated inputs
       detect_superimpose.data() 
@@ -595,10 +686,10 @@ server <- function(input, output, session) {
       )
       time_plotGenerated(TRUE)
       return(time_plot_object)
-    })
-    
+    }) # closes  withProgress()
+    }) # closes output$plot
 
-    })
+    }) # closes  observe()
     
    ## 
     output$saveBtn <- renderUI({##
