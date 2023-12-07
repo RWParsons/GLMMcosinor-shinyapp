@@ -6,7 +6,8 @@ library(shiny)
 library(shinyjs)
 library(DT)
 library(GLMMcosinor)
-library(shinythemes)
+library(shinythemes) 
+library(shinycssloaders) #for the loading animation 
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
 
 
@@ -52,7 +53,9 @@ ui <- fluidPage(
           #Output as tabs
           tabsetPanel(type = "tabs", 
                       tabPanel("Time series plot", 
-                               plotOutput("plot"),
+                               #uiOutput("plot"),
+                               shinycssloaders::withSpinner(plotOutput("plot")),
+                               #plotOutput("plot"),
                                uiOutput("saveBtn"),
                                tags$hr(),
                                # downloadButton("saveBtn", "Save Image"),
@@ -111,6 +114,8 @@ server <- function(input, output, session) {
     }
     read.csv(infile$datapath)
   })
+  
+  output$plot <- NULL
   
   # show some basic summary statistics for each column within the dataset
   output$dataframe_summary <- renderTable({
@@ -658,11 +663,14 @@ server <- function(input, output, session) {
     # create a reactive value that is TRUE if a time-plot has been generated 
     time_plotGenerated <- reactiveVal(FALSE)
 
-    observe({
+     observe({
     #withProgress(message = 'Making plot', value = 0, {
     #generate the time plot
     output$plot <- renderPlot({
-      withProgress(message = 'Making plot', value = 0, {  
+      # if(is.null(cc_obj)){
+      #   return(NULL)
+      # }
+
       # these correspond to reactive inputs. If any of them change, the plots will 
       # be generated again to reflect updated inputs
       detect_superimpose.data() 
@@ -686,11 +694,9 @@ server <- function(input, output, session) {
       )
       time_plotGenerated(TRUE)
       return(time_plot_object)
-    }) # closes  withProgress()
     }) # closes output$plot
 
     }) # closes  observe()
-    
    ## 
     output$saveBtn <- renderUI({##
     if(!time_plotGenerated()) {
