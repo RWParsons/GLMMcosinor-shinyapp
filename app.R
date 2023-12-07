@@ -33,6 +33,7 @@ ui <- fluidPage(
           tags$br(),
           uiOutput("outcome_selector"),
           uiOutput("time_selector"),
+          uiOutput("add_interaction_selector_time"),
           uiOutput("group_selector"),
           uiOutput("add_interaction_selector"),
           uiOutput("family_selector"),
@@ -48,6 +49,9 @@ ui <- fluidPage(
           uiOutput("ui.action")
         ),
 
+        conditionalPanel(
+          condition = "input.action > 0",
+        
         mainPanel(
           
           #Output as tabs
@@ -99,6 +103,7 @@ ui <- fluidPage(
 
 
         )
+        ) #closes the conditional panel
     )
 )
 
@@ -114,8 +119,6 @@ server <- function(input, output, session) {
     }
     read.csv(infile$datapath)
   })
-  
-  output$plot <- NULL
   
   # show some basic summary statistics for each column within the dataset
   output$dataframe_summary <- renderTable({
@@ -175,7 +178,7 @@ server <- function(input, output, session) {
       if(is.null(input$group) || input$group == "None (default)") {
         return(NULL)
       } 
-    checkboxInput("add_interaction","Add as interaction Term", value = TRUE)
+    checkboxInput("add_interaction","Add as interaction term", value = FALSE)
   })
 
   # choose the time variable
@@ -185,6 +188,15 @@ server <- function(input, output, session) {
     }
     selectInput("time", "Select the TIME (INDEPENDENT) variable from:", cols())
   })
+  
+  # a checkbox that determines whether the time variable will be included as an interaction term
+  output$add_interaction_selector_time <- renderUI({
+    if(is.null(input$time)) {
+      return(NULL)
+    } 
+    checkboxInput("add_interaction_time","Add as interaction term", value = FALSE)
+  })
+  
 
   # choose the grouping variable. 
   output$group_selector <- renderUI({
@@ -420,6 +432,7 @@ server <- function(input, output, session) {
       family = input$family, 
       group = input$group, 
       add_interaction = input$add_interaction,
+      add_interaction_time = input$add_interaction_time,
       outcome = input$outcome, 
       time = input$time, 
       period_values = period_values, 

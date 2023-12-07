@@ -3,6 +3,7 @@ get_formula <- function(component_num,
                         family,
                         group,
                         add_interaction,
+                        add_interaction_time,
                         outcome,
                         time,
                         period_values,
@@ -12,13 +13,18 @@ get_formula <- function(component_num,
   # Get the family argument as a function
   family <- eval(parse(text = family))
 
-
   if (!is.null(add_interaction)) {
     group_label_1 <- paste0(group)
     group_label_2 <- paste0("group ='", group, "',")
   } else {
     group_label_1 <- NULL
     group_label_2 <- paste0("group ='", group, "',")
+  }
+  
+  if(!is.null(add_interaction_time)) {
+    time_interaction <- paste0(time, "+")
+  } else {
+    time_intearction <- NULL
   }
 
   if (group == "None (default)") {
@@ -38,7 +44,7 @@ get_formula <- function(component_num,
   }
 
   # Define the formula as a string to be evaluated
-  form_obj <- paste0(outcome, "~", group_label_1, "+", "amp_acro(time_col = ", time, ", n_components =", component_num, ",", group_label_2, "period =c(", paste(period_values, collapse = ", "), "))", ranef_bit)
+  form_obj <- paste0(outcome, "~", group_label_1, "+", time_interaction,"amp_acro(time_col = ", time, ", n_components =", component_num, ",", group_label_2, "period =c(", paste(period_values, collapse = ", "), "))", ranef_bit)
 
   # Convert string into formula
   formula <- as.formula(form_obj)
