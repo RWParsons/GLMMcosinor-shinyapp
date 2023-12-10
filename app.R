@@ -7,6 +7,7 @@ library(shinyjs)
 library(DT)
 library(GLMMcosinor)
 library(shinythemes) 
+library(ggplot2)
 library(shinycssloaders) #for the loading animation 
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
 
@@ -692,6 +693,8 @@ server <- function(input, output, session) {
       detect_xmax()
       detect_prediction_length()
       detect_add_ranef_plot()
+      detect_xlabel()
+      detect_ylabel()
       
       #get the time plot
       time_plot_object <- get_time_plot_inputs(
@@ -705,6 +708,14 @@ server <- function(input, output, session) {
         ci_level = input$ci_level,
         cc_obj = cc_obj
       )
+      #Add x and y labels to the plot 
+      if(!is.null(input$xlabel)){
+        time_plot_object <- time_plot_object + ggplot2::xlab(input$xlabel)
+      }
+      
+      if(!is.null(input$ylabel)){
+        time_plot_object <- time_plot_object + ggplot2::ylab(input$ylabel)
+      }
       time_plotGenerated(TRUE)
       return(time_plot_object)
     }) # closes output$plot
@@ -721,7 +732,7 @@ server <- function(input, output, session) {
         paste("time_plot.png")
       },
       content = function(file){
-        plot_obj <- get_time_plot_inputs(
+        time_plot_object <- get_time_plot_inputs(
           superimpose.data = input$superimpose.data,
           predict.ribbon = input$predict.ribbon,
           xmin = input$xmin,
@@ -733,12 +744,21 @@ server <- function(input, output, session) {
           cc_obj = cc_obj
         )
         
+        #Add x and y labels to the plot 
+        if(!is.null(input$xlabel)){
+          time_plot_object <- time_plot_object + ggplot2::xlab(input$xlabel)
+        }
+        
+        if(!is.null(input$ylabel)){
+          time_plot_object <- time_plot_object + ggplot2::ylab(input$ylabel)
+        }
+        
         # Get the actual width and height of the rendered plot
         width_px <- session$clientData$output_plot_width
         height_px <- session$clientData$output_plot_height
 
         ggplot2::ggsave(file, 
-                        plot = plot_obj, 
+                        plot = time_plot_object, 
         width = width_px*5,
         height = height_px*5, 
         units = "px")
@@ -765,7 +785,9 @@ server <- function(input, output, session) {
         checkboxInput('predict.ribbon', "Show prediction interval", FALSE),
         numericInput('xmin', label = "x-min", value = xmin, width = "250px"),
         numericInput('xmax', label = "x-max", value = xmax, width = "250px"),
-        numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px")
+        numericInput('prediction_length', label = 'Prediction length:', value = default_pred.length.out, width = "250px"),
+        textInput("xlabel", "X-axis label:", value = input$time),
+        textInput("ylabel", "Y-axis label:", value = input$outcome)
         
       )
       plot_toggles_list
@@ -787,6 +809,9 @@ server <- function(input, output, session) {
     detect_xmax <- reactiveVal(input$xmax)
     detect_prediction_length <- reactiveVal(input$prediction_length)
     detect_add_ranef_plot <- reactiveVal(input$add_ranef_plot)
+    detect_xlabel <- reactiveVal(input$xlabel)
+    detect_ylabel <- reactiveVal(input$ylabel)
+    
     
     # polar plot 
     # Update plot based on user interaction
