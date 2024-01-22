@@ -12,7 +12,7 @@ get_formula <- function(component_num,
                         ranef_int) {
   # Get the family argument as a function
   family <- eval(parse(text = family))
-
+  
   if (!is.null(add_interaction)) {
     group_label_1 <- paste0(group)
     group_label_2 <- paste0("group ='", group, "',")
@@ -21,10 +21,10 @@ get_formula <- function(component_num,
     group_label_2 <- paste0("group ='", group, "',")
   }
   
-  if(!is.null(add_interaction_time)) {
+  if(add_interaction_time) {
     time_interaction <- paste0(time, "+")
   } else {
-    time_intearction <- NULL
+    time_interaction <- NULL
   }
 
   if (group == "None (default)") {

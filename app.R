@@ -99,7 +99,6 @@ ui <- fluidPage(
                                uiOutput("comparison_text2"),
                                uiOutput("saveBtn_comparison_table_component")),
                       tabPanel("Data",
-                               uiOutput("dataframe_summary"),
                                DTOutput("dataframe"))
                       )
 
@@ -130,22 +129,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # show some basic summary statistics for each column within the dataset
-  output$dataframe_summary <- renderTable({
-    if(is.null(input$file1)) {
-      return()
-    }
-    df <- filedata()
-    data_summary <- data.frame()
-    for (i in 1:length(names(df))){
-      data_summary[1:6,i] <- (summary(df[,i]))
-      colnames(data_summary)[i] <- names(df)[i]
-    }
-    rownames(data_summary) <- c("Min.","1st Qu.", "Median", "Mean","3rd Qu.", "Max.")
-    return(data_summary)
-  }, rownames = TRUE)
-  
-
   # show the dataset 
   output$dataframe <- renderDT({
     if(is.null(input$file1)) {
