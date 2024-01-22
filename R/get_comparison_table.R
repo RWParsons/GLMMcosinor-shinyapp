@@ -39,7 +39,7 @@ get_comparison_table <- function(ref_level,
           } else {
             ref_full <- round(cc_obj$coefficients[paste0(group_name, ref_level, ":", param, i)], digits = 5)
           }
-          comp_table[counter, 1] <- paste0("[", paste0(group_name, ref_level, ":", param, i), "] = ", ref_full)
+          comp_table[counter, 1] <- paste0("[", paste0(group_name,"=", ref_level, "]:", param, i), " = ", ref_full)
           comp_table[counter, 2] <- paste0("[", group_name, "=", comparison_levels[j], "]:", param, i, " = ", round(comp_output_param$ind.test$conf.int[1], digits = 5) + ref_full)
           comp_table[counter, 3:5] <- comp_output_param$ind.test$conf.int
 

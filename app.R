@@ -9,6 +9,7 @@ library(GLMMcosinor)
 library(shinythemes) 
 library(ggplot2)
 library(shinycssloaders) #for the loading animation 
+library(readxl)
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
 
 
@@ -27,6 +28,7 @@ ui <- fluidPage(
                       "Choose CSV File",
                       accept = c(
                         "text/csv", 
+                        ".xlsx",
                         "text/comma-seperated-values,text/plain", 
                         ".csv"
                       )
@@ -118,7 +120,14 @@ server <- function(input, output, session) {
     if(is.null(infile)) {
       return(NULL)
     }
-    read.csv(infile$datapath)
+    #check if file is an excel (xlsx) file 
+    if (tolower(substr(infile$datapath, 
+                       start = nchar(infile$datapath)-4, 
+                       stop = nchar(infile$datapath))) == ".xlsx") {
+      return(read_excel(infile$datapath))
+    } else {
+      return(read.csv(infile$datapath))
+    }
   })
   
   # show some basic summary statistics for each column within the dataset
@@ -267,10 +276,10 @@ server <- function(input, output, session) {
     })
     
     # based on the number of components, allow the user to select which components to add as 
-    # random effects 
-    random_effect_inputs <- lapply(seq_len(component_num),function(i){
-      checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
-    })
+    # # random effects 
+    # random_effect_inputs <- lapply(seq_len(component_num),function(i){
+    #   checkboxInput(paste0("amp_acro",i),label = paste("Add component",i, "as random effect"))
+    # })
     
     # if there is a group, allow the user to specify as a random effect term 
     random_effect_intercept_inputs <- checkboxInput("group_ranef",label = paste("Add group:",paste(group), "as random effect"))
