@@ -8,6 +8,7 @@ library(DT)
 library(GLMMcosinor)
 library(shinythemes) 
 library(ggplot2)
+library(glmmTMB)
 library(shinycssloaders) #for the loading animation 
 library(readxl)
 lapply(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
@@ -207,15 +208,29 @@ server <- function(input, output, session) {
     
     #These arguments are from the family() function to be passed to glmmTMB 
     selectInput("family", "Select the data distribution:", c(
-      'gaussian(link = "identity")',
-      'binomial(link = "logit")',
-      'Gamma(link = "log")',
-      'inverse.gaussian(link = "1/mu^2")',
-      'poisson(link = "log")',
-      'quasi(link = "identity", variance = "constant")',
-      'quasibinomial(link = "logit")',
-      'quasipoisson(link = "log")'
-    ))
+                  'gaussian(link = "identity")',
+                  'binomial(link = "logit")',
+                  'Gamma(link = "log")',
+                  'inverse.gaussian(link = "1/mu^2")',
+                  'poisson(link = "log")',
+                  'nbinom2(link = "log")',
+                  'nbinom1(link = "log")',
+                  'compois(link = "log")',
+                  'truncated_compois(link = "log")',
+                  'genpois(link = "log")',
+                  'truncated_genpois(link = "log")',
+                  'truncated_poisson(link = "log")',
+                  'truncated_nbinom2(link = "log")',
+                  'truncated_nbinom1(link = "log")',
+                  'beta_family(link = "logit")',
+                  'betabinomial(link = "logit")',
+                  'tweedie(link = "log")',
+                  'lognormal(link = "log")',
+                  'ziGamma(link = "inverse")',
+                  't_family(link = "identity")',
+                  'ordbeta(link = "logit")'
+                )
+    )
   })
   
   # select the number of components in the model 
@@ -419,7 +434,8 @@ server <- function(input, output, session) {
       }
       
     # get the cglmm() object   
-    cc_obj <- get_formula(
+    cc_obj <- tryCatch({
+      get_formula(
       component_num = component_num, 
       df = df,
       family = input$family, 
@@ -433,6 +449,30 @@ server <- function(input, output, session) {
       categorical_var = categorical_var, 
       ranef_int = ranef_int
       )
+      
+    }, error = function(e) {
+      showNotification(paste("Error: ", e$message), type = "error")
+      return(NULL)  # Return NULL or any default value
+    }, warning = function(w) {
+      # Handle the warning here
+      showNotification(paste("Warning: ", w$message), type = "warning")
+      # Continue with the calculation despite the warning
+      get_formula(
+        component_num = component_num, 
+        df = df,
+        family = input$family, 
+        group = input$group, 
+        add_interaction = input$add_interaction,
+        add_interaction_time = input$add_interaction_time,
+        outcome = input$outcome, 
+        time = input$time, 
+        period_values = period_values, 
+        ranef_components = ranef_components, 
+        categorical_var = categorical_var, 
+        ranef_int = ranef_int
+      )
+    })
+    
     })
     
     #store the cc_obj as output
