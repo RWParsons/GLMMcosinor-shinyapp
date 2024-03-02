@@ -9,10 +9,10 @@ randomEffectModuleUI <- function(id) {
 
 randomEffectModule <- function(input, output, session) {
   options_list <- reactiveVal(list())
-  
+
   observeEvent(input$add_ranef, {
     current_options <- options_list()
-    
+
     new_options <- list(
       lapply(1:(length(current_options) + 1), function(i) {
         checkboxInput(paste0("amp_acro", i), label = paste("Add component", i, "as random effect"))
@@ -22,10 +22,10 @@ randomEffectModule <- function(input, output, session) {
       }),
       actionButton(paste0("remove_button", length(current_options) + 1), "Remove")
     )
-    
+
     options_list(c(current_options, new_options))
   })
-  
+
   for (i in 1:length(options_list())) {
     observeEvent(input[[paste0("remove_button", i)]], {
       current_options <- options_list()
@@ -33,10 +33,9 @@ randomEffectModule <- function(input, output, session) {
       options_list(current_options)
     })
   }
-  
+
   output$random_effect_inputs <- renderUI({
     options <- options_list()
     do.call(tagList, options)
   })
 }
-

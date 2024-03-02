@@ -3,7 +3,7 @@ get_comparison_table <- function(ref_level,
                                  group_name,
                                  components,
                                  cc_obj,
-                                 choose_comparison, 
+                                 choose_comparison,
                                  ci_level) {
   # create empty dataframes fort he two tables.
   comp_table <- data.frame() # dataframe for group comparison
@@ -28,7 +28,7 @@ get_comparison_table <- function(ref_level,
             param = param,
             comparison_A = ref_level,
             comparison_B = comparison_levels[j],
-            component_index = i, 
+            component_index = i,
             ci_level = ci_level
           )
 
@@ -39,7 +39,7 @@ get_comparison_table <- function(ref_level,
           } else {
             ref_full <- round(cc_obj$coefficients[paste0(group_name, ref_level, ":", param, i)], digits = 5)
           }
-          comp_table[counter, 1] <- paste0("[", paste0(group_name,"=", ref_level, "]:", param, i), " = ", ref_full)
+          comp_table[counter, 1] <- paste0("[", paste0(group_name, "=", ref_level, "]:", param, i), " = ", ref_full)
           comp_table[counter, 2] <- paste0("[", group_name, "=", comparison_levels[j], "]:", param, i, " = ", round(comp_output_param$ind.test$conf.int[1], digits = 5) + ref_full)
           comp_table[counter, 3:5] <- comp_output_param$ind.test$conf.int
 
@@ -63,7 +63,7 @@ get_comparison_table <- function(ref_level,
             param = param,
             comparison_A = ref_comp,
             comparison_B = comparison_components[j],
-            level_index = as.integer(levels[i]), 
+            level_index = as.integer(levels[i]),
             ci_level = ci_level
           )
           if (is.null(group_name)) {

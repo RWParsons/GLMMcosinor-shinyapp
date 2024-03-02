@@ -13,8 +13,7 @@ f_sample_id_2 <- function(id_num,
                           beta.mesor,
                           beta.amp,
                           beta.acro,
-                          beta.group = TRUE
-) {
+                          beta.group = TRUE) {
   data <- simulate_cosinor(
     n = n,
     mesor = mesor,
@@ -29,9 +28,8 @@ f_sample_id_2 <- function(id_num,
     beta.amp = beta.amp,
     beta.acro = beta.acro,
     beta.group = beta.group
-    
   )
-  if(id_num %% 2 == 0) {
+  if (id_num %% 2 == 0) {
     # data$group = 1
     rows_to_keep <- seq_len(nrow(data) %/% 2)
     data <- data[-rows_to_keep, ]
@@ -66,9 +64,9 @@ dat_mixed_2 <- do.call(
 
 mixed_mod_2 <- cglmm(
   Y ~ group + amp_acro(times,
-                       n_components = 1,
-                       period = 24,
-                       group = "group"
+    n_components = 1,
+    period = 24,
+    group = "group"
   ) + (1 + amp_acro1 | subject),
   data = dat_mixed_2
 )
@@ -81,13 +79,13 @@ mixed_mod_2 <- cglmm(
 # n = 10
 # sd = 0.5
 # beta.sd = 0.5
-# mesor = 10 
+# mesor = 10
 # amp = 3
 # acro = 2
 # beta.mesor = 6
 # beta.amp = 5
 # beta.acro = 1
-# 
+#
 # for (i in 1:4) {
 # dataset[[i]] <- simulate_cosinor(
 #   n = n,
