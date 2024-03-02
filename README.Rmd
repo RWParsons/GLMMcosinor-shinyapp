@@ -1,0 +1,37 @@
+---
+output: github_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# GLMMcosinor
+
+This repository contains the shiny app that implements cosinor modelling using the GLMMcosinor R package.
+
+For more details about GLMMcosinor, see the documentation here <https://docs.ropensci.org/GLMMcosinor/>.
+
+
+# Access
+The published version of the app can be accessed here: <https://aushsi.shinyapps.io/GLMMcosinor-shinyapp>
+
+## Installation
+
+To run the app locally:
+
+- clone the repository
+- run `renv::restore()` to install the necessary dependencies
+- run `shiny::runApp()` to load the app
+
+# Citation
+
+If you use this shiny app or the R package for your work, please cite it.
+
+```{r, echo=FALSE}
+citation("GLMMcosinor")
+```
+
